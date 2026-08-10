@@ -64,18 +64,26 @@ def parse_state(reply: str):
     return out if {"x", "y", "g", "n"} <= out.keys() else None
 
 
-def show(before, after, action: str) -> None:
+def show(before, after, action: str, is_direction: bool) -> None:
     if before is None or after is None:
         print(f"  {action:6} -> etat illisible")
         return
     dx, dy = after["x"] - before["x"], after["y"] - before["y"]
-    moved = dx != 0 or dy != 0
     carte = "" if (before["g"], before["n"]) == (after["g"], after["n"]) else \
             f"  CARTE {before['g']}:{before['n']} -> {after['g']}:{after['n']}"
     if after["g"] == 255:
         carte += "  (transition de porte)"
+
+    # Un delta nul n'a de sens que pour une DIRECTION. Sur un bouton, ne rien
+    # bouger est le comportement normal -- l'annoncer comme un mur serait une
+    # etiquette fausse, et une etiquette fausse se paye plus tard.
+    if is_direction and dx == 0 and dy == 0:
+        verdict = "   MUR ou pas avale"
+    else:
+        verdict = ""
+
     print(f"  {action:6} ({before['x']},{before['y']}) -> ({after['x']},{after['y']})"
-          f"  delta=({dx:+d},{dy:+d}){'' if moved else '   MUR ou pas avale'}{carte}")
+          f"  delta=({dx:+d},{dy:+d}){verdict}{carte}")
 
 
 def main() -> int:
@@ -112,14 +120,16 @@ def main() -> int:
                 print(" ", probe.ask("state"))
                 continue
 
-            key = DIRECTIONS.get(cmd) or BUTTONS.get(cmd)
+            key = DIRECTIONS.get(cmd)
+            is_direction = key is not None
+            key = key or BUTTONS.get(cmd)
             if not key:
                 print("  ? z q s d / a b / state / quit")
                 continue
 
             before = parse_state(probe.ask("state"))
             after = parse_state(probe.ask(f"press {key} {args.frames}"))
-            show(before, after, cmd)
+            show(before, after, cmd, is_direction)
     finally:
         probe.close()
     return 0
