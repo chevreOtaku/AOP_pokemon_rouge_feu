@@ -1,0 +1,9 @@
+# La sonde (probe.py) et le marcheur manuel (walk.py) n'ont AUCUNE dependance :
+# stdlib seule. Seule la brique en a une, et une seule.
+#
+# websocket-client : le transport WebSocket, que la stdlib ne fournit pas.
+# Pur Python, zero dependance transitive. Il ne connait pas le protocole du
+# moteur -- il ouvre une socket et passe des chaines. La logique de protocole
+# (protocol.py, brick.py) est a nous, conformement a la decision D3 :
+# « je ne veux pas adopter je veux ecrire je ne veux pas dependre ».
+websocket-client>=1.9

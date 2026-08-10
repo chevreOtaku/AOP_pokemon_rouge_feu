@@ -9,6 +9,10 @@ venv/
 .env
 config.local.*
 
+# Traces de session. C'est de la MESURE, pas de la source : une trace qui
+# compte se promeut deliberement dans la doc, avec le nombre qu'elle produit.
+traces/
+
 # Artefacts d'emulateur : ROM, sauvegardes, savestates, captures.
 # Rien de tout cela n'a a etre versionne.
 *.gba
