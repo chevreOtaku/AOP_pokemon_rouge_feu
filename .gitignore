@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Configuration locale -- l'URL du serveur et tout secret vivent ici,
+# jamais dans le depot.
+.env
+config.local.*
+
+# Artefacts d'emulateur : ROM, sauvegardes, savestates, captures.
+# Rien de tout cela n'a a etre versionne.
+*.gba
+*.sav
+*.ss[0-9]
+*.png
+roms/
