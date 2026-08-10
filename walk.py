@@ -16,12 +16,10 @@ Commandes : z q s d (ou nord sud ouest est) . a b . state . quit
 """
 
 import argparse
-import socket
 import sys
 
-# L'adresse est une VALEUR DE CONFIGURATION, jamais une constante.
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 9601
+from probe import (DEFAULT_HOST, DEFAULT_PORT, DOOR_TRANSITION, PRESS_FRAMES,
+                   Probe, parse_state)
 
 DIRECTIONS = {
     "z": "UP", "s": "DOWN", "q": "LEFT", "d": "RIGHT",
@@ -31,39 +29,6 @@ DIRECTIONS = {
 BUTTONS = {"a": "A", "b": "B", "start": "START", "select": "SELECT"}
 
 
-class Probe:
-    """Client ligne par ligne de la sonde Lua."""
-
-    def __init__(self, host: str, port: int) -> None:
-        self._sock = socket.create_connection((host, port), timeout=15)
-        self._buf = b""
-
-    def ask(self, line: str) -> str:
-        self._sock.sendall((line + "\n").encode("ascii"))
-        while b"\n" not in self._buf:
-            chunk = self._sock.recv(512)
-            if not chunk:
-                raise ConnectionError("la sonde a ferme la connexion")
-            self._buf += chunk
-        raw, self._buf = self._buf.split(b"\n", 1)
-        return raw.decode("ascii", errors="replace").strip()
-
-    def close(self) -> None:
-        self._sock.close()
-
-
-def parse_state(reply: str):
-    """'ok x=12 y=34 g=3 n=1' -> dict, ou None si la sonde a rendu une erreur."""
-    if not reply.startswith("ok "):
-        return None
-    out = {}
-    for token in reply[3:].split():
-        key, _, value = token.partition("=")
-        if value.lstrip("-").isdigit():
-            out[key] = int(value)
-    return out if {"x", "y", "g", "n"} <= out.keys() else None
-
-
 def show(before, after, action: str, is_direction: bool) -> None:
     if before is None or after is None:
         print(f"  {action:6} -> etat illisible")
@@ -71,7 +36,7 @@ def show(before, after, action: str, is_direction: bool) -> None:
     dx, dy = after["x"] - before["x"], after["y"] - before["y"]
     carte = "" if (before["g"], before["n"]) == (after["g"], after["n"]) else \
             f"  CARTE {before['g']}:{before['n']} -> {after['g']}:{after['n']}"
-    if after["g"] == 255:
+    if after["g"] == DOOR_TRANSITION:
         carte += "  (transition de porte)"
 
     # Un delta nul n'a de sens que pour une DIRECTION. Sur un bouton, ne rien
@@ -90,7 +55,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
-    ap.add_argument("--frames", type=int, default=16, help="duree de l'appui")
+    ap.add_argument("--frames", type=int, default=PRESS_FRAMES,
+                    help="duree de l'appui")
     args = ap.parse_args()
 
     try:
