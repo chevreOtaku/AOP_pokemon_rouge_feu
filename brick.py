@@ -38,6 +38,7 @@ import datetime as dt
 import json
 import os
 import sys
+import time
 
 import probe as probe_mod
 import protocol
@@ -241,6 +242,9 @@ def main() -> int:
                     help="budget de tours = K x la distance de depart (defaut "
                          "3). Au-dela sans arriver : ERRANCE. Sans cible, "
                          "sans effet -- la boucle tourne alors indefiniment")
+    ap.add_argument("--stall", type=float, default=60.0, metavar="S",
+                    help="secondes sans action, force en attente, avant de "
+                         "declarer un silence du moteur (defaut 60)")
     ap.add_argument("--verbose", action="store_true", help="montre les trames")
     args = ap.parse_args()
 
@@ -289,10 +293,20 @@ def main() -> int:
     if target is not None:
         opening += f" Walk to ({target['x']},{target['y']})."
     client.context(opening, silent=silent_report)
-    if args.drive == "force":
-        # ephemeral_context : la consigne se repete a chaque tour, on ne veut
-        # PAS qu'elle s'empile dans le contexte (technique du registre §6bis).
-        client.force(force_query(target), list(MOVES), ephemeral_context=True)
+
+    # ⚠⚠ LA PREMIERE FORCE NE PART PAS ICI, ET C'EST UN CORRECTIF.
+    #
+    # Le moteur demande une REINSCRIPTION juste apres la connexion. Forcer
+    # avant que sa liste d'actions soit stable fabrique la course de l'issue
+    # #14 : la force reference des actions reinscrites sous elle.
+    # Diagnostic recu le 2026-08-11 : « Multiple actions/force at once --
+    # Neuro can only handle one action force at a time ».
+    #
+    # Elle part donc au premier tour de boucle A VIDE, quand la poignee de
+    # main s'est tue. Et `pending_force` garantit qu'il n'y en a JAMAIS deux :
+    # une force se consomme par l'action qu'elle provoque.
+    pending_force = False
+    forced_at = 0.0
 
     turns = 0
     stuck = 0
@@ -308,10 +322,28 @@ def main() -> int:
         while True:
             msg = client.receive(timeout=1.0)
             if msg is None:
+                # Silence du moteur = la poignee de main s'est tue. C'est le
+                # seul moment sur pour poser la premiere force.
+                if args.drive == "force" and not pending_force:
+                    client.force(force_query(target), list(MOVES),
+                                 ephemeral_context=True)
+                    pending_force = True
+                    forced_at = time.monotonic()
+                # ⚠ Une force sans reponse n'autorise PAS d'en renvoyer une
+                # (c'est le defaut qu'on vient de corriger). Mais attendre en
+                # silence pour toujours n'est pas mieux : il faut le DIRE.
+                elif pending_force and time.monotonic() - forced_at > args.stall:
+                    print(f"  SILENCE : aucune action depuis {args.stall:.0f} s "
+                          f"malgre une force en attente.")
+                    print("  Regarde le journal du moteur -- la panne est de "
+                          "son cote, pas ici.")
+                    break
                 continue
             command = msg.get("command")
 
             if command == "action":
+                # L'action CONSOMME la force qui l'a provoquee.
+                pending_force = False
                 turns += 1
                 moved, arrived, d_now = handle_action(
                     client, sonde, msg, trace, target, args.frames, silent_report)
@@ -340,6 +372,8 @@ def main() -> int:
                 if args.drive == "force":
                     client.force(force_query(target), list(MOVES),
                                  ephemeral_context=True)
+                    pending_force = True
+                    forced_at = time.monotonic()
 
             elif command == "actions/reregister_all":
                 # ⚠ La spec dit que ce message n'existe pas ; Randy l'ENVOIE a
