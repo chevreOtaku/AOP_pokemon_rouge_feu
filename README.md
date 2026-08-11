@@ -65,7 +65,32 @@ python brick.py --target 12,8        # cible sur la carte courante
 python brick.py --verbose            # montre les trames envoyees et recues
 ```
 
-Chaque action produit une ligne dans `traces/walk_<horodatage>.jsonl`.
+### Format de la trace
+
+`traces/walk_<horodatage>.jsonl` -- une ligne JSON par evenement, champ `type` :
+
+| `type` | quand | ce qu'il porte |
+|---|---|---|
+| `session` | **premiere ligne**, une seule | pilote declare, jeu, URL, mode de relance, depart, cible, et tous les seuils |
+| `action` | une par action executee | action, `pilote`, avant, apres, `dx`/`dy`, distances, `moved` |
+
+⚠ **Un lecteur doit filtrer sur `type`.** Une trace anterieure au 2026-08-11 n'a ni
+en-tete ni champ `type` : la traiter comme les nouvelles compterait l'en-tete pour une
+action.
+
+**Pourquoi un en-tete** : sans lui, deux traces produites dans des conditions opposees
+sont indiscernables -- celle d'un pilote aleatoire et celle d'un modele se ressemblent
+trait pour trait. Un nombre sans ses conditions n'est pas une mesure.
+
+**Pourquoi `pilote` sur CHAQUE action** et pas seulement dans l'en-tete : le jour ou un
+humain prend le relais sur une portion du trajet, une trace sans ce champ melangerait les
+deux et **tous les agregats deviendraient faux sans que rien ne le signale**. Il ne coute
+rien aujourd'hui -- une seule source agit -- et il evite d'avoir a jeter des mesures plus
+tard.
+
+⚠ **`--pilote` est une etiquette DECLAREE, pas une mesure.** La brique ne voit que des
+messages de protocole ; elle ne peut pas savoir quel moteur les produit. Une etiquette
+declaree peut mentir -- mais une trace sans etiquette ne peut meme pas etre comparee.
 
 ### L'ordre des pilotes n'est pas negociable
 

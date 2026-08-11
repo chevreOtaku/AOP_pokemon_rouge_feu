@@ -138,15 +138,24 @@ def parse_target(raw: str, current):
 # ------------------------------------------------------------------- trace
 
 class Trace:
-    """Une ligne JSON par action. C'est la mesure, pas un journal de debug."""
+    """Une ligne JSON par action. C'est la mesure, pas un journal de debug.
 
-    def __init__(self, directory: str) -> None:
+    ⚠ La PREMIERE ligne est un en-tete de session, pas une action. Sans elle,
+    deux traces produites dans des conditions opposees sont indiscernables --
+    celle d'un pilote aleatoire et celle d'un LLM se ressemblent trait pour
+    trait. Un nombre sans ses conditions n'est pas une mesure, c'est une
+    anecdote qu'on croit comparable.
+    """
+
+    def __init__(self, directory: str, session: dict) -> None:
         os.makedirs(directory, exist_ok=True)
         stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.path = os.path.join(directory, f"walk_{stamp}.jsonl")
         self._fh = open(self.path, "a", encoding="utf-8")
+        self.write({"type": "session", **session})
 
     def write(self, row: dict) -> None:
+        row.setdefault("type", "action")
         row["t"] = dt.datetime.now().isoformat(timespec="seconds")
         self._fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         self._fh.flush()   # une session qui plante ne doit pas perdre sa mesure
@@ -168,7 +177,7 @@ def force_query(target) -> str:
             f"Choose one direction to move.")
 
 
-def handle_action(client, sonde, msg, trace, target, frames, silent_report):
+def handle_action(client, sonde, msg, trace, target, frames, silent_report, pilote):
     """Rend (moved, arrived). `moved` vaut None quand il n'y a pas de cible."""
     data = msg.get("data") or {}
     action_id = data.get("id")
@@ -201,6 +210,11 @@ def handle_action(client, sonde, msg, trace, target, frames, silent_report):
     d_before, d_after = distance(before, target), distance(after, target)
     trace.write({
         "action": name,
+        # Qui a decide ce pas. Constant aujourd'hui -- une seule source agit --
+        # mais pose des maintenant : le jour ou un humain prendra le relais sur
+        # une portion, une trace sans ce champ melangerait les deux et tous les
+        # agregats deviendraient faux SANS que rien ne le signale.
+        "pilote": pilote,
         "id": action_id,
         "before": before,
         "after": after,
@@ -242,6 +256,10 @@ def main() -> int:
                     help="budget de tours = K x la distance de depart (defaut "
                          "3). Au-dela sans arriver : ERRANCE. Sans cible, "
                          "sans effet -- la boucle tourne alors indefiniment")
+    ap.add_argument("--pilote", default="inconnu", metavar="NOM",
+                    help="qui decide -- 'randy', 'openrouter/free', un nom de "
+                         "modele, 'humain'. ⚠ ETIQUETTE DECLAREE, pas mesuree : "
+                         "la brique ne peut pas savoir ce que le moteur execute")
     ap.add_argument("--stall", type=float, default=60.0, metavar="S",
                     help="secondes sans action, force en attente, avant de "
                          "declarer un silence du moteur (defaut 60)")
@@ -272,7 +290,22 @@ def main() -> int:
         sonde.close()
         return 1
 
-    trace = Trace(args.trace_dir)
+    # L'en-tete de session. ⚠ `pilote` est DECLARE : la brique ne voit que des
+    # messages de protocole, jamais quel moteur les produit. Une etiquette
+    # declaree peut mentir -- mais une trace sans etiquette ne peut meme pas
+    # etre comparee, et c'est pire.
+    trace = Trace(args.trace_dir, {
+        "pilote": args.pilote,
+        "jeu": args.game,
+        "url": args.url,
+        "drive": args.drive,
+        "depart": start,
+        "cible": target,
+        "frames": args.frames,
+        "max_stuck": args.max_stuck,
+        "turn_budget": args.turn_budget,
+        "stall": args.stall,
+    })
     print(f"Sonde   : {args.host}:{args.port}  -- depart ({start['x']},{start['y']}) "
           f"carte {start['g']}:{start['n']}")
     print(f"Moteur  : {args.url}")
@@ -346,7 +379,8 @@ def main() -> int:
                 pending_force = False
                 turns += 1
                 moved, arrived, d_now = handle_action(
-                    client, sonde, msg, trace, target, args.frames, silent_report)
+                    client, sonde, msg, trace, target, args.frames,
+                    silent_report, args.pilote)
                 if d_now is not None:
                     d_last = d_now
                 if arrived:
@@ -403,6 +437,7 @@ def main() -> int:
         sonde.close()
         print()
         print("--- fin de session ---")
+        print(f"pilote declare         : {args.pilote}")
         print(f"tours joues            : {turns}")
         if target is not None:
             print(f"budget de tours        : {budget} ({args.turn_budget}x "
