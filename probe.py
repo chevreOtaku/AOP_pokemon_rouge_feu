@@ -38,6 +38,12 @@ class Probe:
                  timeout: float = 15.0) -> None:
         self._sock = socket.create_connection((host, port), timeout=timeout)
         self._buf = b""
+        # Derniere reponse brute. ⚠ `parse_state` reduit TOUTE reponse non-`ok`
+        # au meme None, ce qui efface la raison : « pointeur invalide » et
+        # « une pression est deja en cours » deviennent indiscernables alors
+        # qu'elles demandent deux gestes opposes. La sonde nous dit pourquoi ;
+        # sans ceci, l'appelant jette le message.
+        self.last_reply = ""
 
     def ask(self, line: str) -> str:
         self._sock.sendall((line + "\n").encode("ascii"))
@@ -47,7 +53,8 @@ class Probe:
                 raise ConnectionError("la sonde a ferme la connexion")
             self._buf += chunk
         raw, self._buf = self._buf.split(b"\n", 1)
-        return raw.decode("ascii", errors="replace").strip()
+        self.last_reply = raw.decode("ascii", errors="replace").strip()
+        return self.last_reply
 
     def state(self):
         return parse_state(self.ask("state"))

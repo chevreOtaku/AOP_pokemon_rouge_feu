@@ -196,6 +196,12 @@ def handle_action(client, sonde, msg, trace, target, frames, silent_report, pilo
     # 2. Le monde.
     before = sonde.state()
     after = sonde.press(MOVES[name], frames)
+    if after is None:
+        # ⚠ On REMONTE ce que la sonde a dit. Un pointeur RAM invalide et une
+        # collision de pilotes (« une pression est deja en cours », quand un
+        # second client parle a la meme sonde) sont deux pannes differentes
+        # qui exigent deux gestes opposes -- et elles s'affichaient pareil.
+        print(f"  !! la sonde a refuse : {sonde.last_reply!r}")
 
     # 3. Le compte rendu, separe et posterieur. SILENCIEUX en mode `force` :
     #    un rapport nourrit le contexte, il ne reclame rien. C'est la
@@ -280,6 +286,16 @@ def main() -> int:
         sonde.close()
         return 1
     target = parse_target(args.target, start)
+
+    # ⚠ L'arrivee ne se testait QU'APRES une action. Depart (12,10) pour une
+    # cible (12,10) faisait donc demander au moteur de marcher la ou il etait
+    # deja -- une consigne absurde envoyee a un modele, et un budget de tours
+    # calcule sur une distance nulle. Mesure du 2026-08-11.
+    if target is not None and distance(start, target) == 0:
+        print(f"Depart et cible confondus en ({start['x']},{start['y']}).")
+        print("Rien a parcourir -- choisis une autre cible.")
+        sonde.close()
+        return 0
 
     client = protocol.Client(args.url, args.game, verbose=args.verbose)
     try:
