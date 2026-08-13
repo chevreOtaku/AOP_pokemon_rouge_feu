@@ -10,7 +10,15 @@ Protocole de la sonde (une ligne par requete, une ligne par reponse) :
     ping                 -> ok pong
     state                -> ok x=<n> y=<n> g=<n> n=<n>
     press <KEY> [frames] -> ok x=<n> y=<n> g=<n> n=<n>   (etat APRES stabilisation)
+    read8|16|32 <addr>   -> ok <valeur>
+    dump <addr> <len>    -> ok <hexa>
+    blocks <a> <l> <b>   -> ok <somme par bloc>
     err <message>        en cas d'echec
+
+⚠ Les trois dernieres servent a CHERCHER une adresse, pas a lire un etat connu.
+Aucune carte memoire n'existe pour la version FR : chaque adresse se trouve par
+scan et correlation, comme le pointeur de position en juillet. Le tri se fait
+ici, en Python -- la sonde rend des octets et ne decide rien.
 """
 
 import socket
@@ -48,7 +56,9 @@ class Probe:
     def ask(self, line: str) -> str:
         self._sock.sendall((line + "\n").encode("ascii"))
         while b"\n" not in self._buf:
-            chunk = self._sock.recv(512)
+            # 64 Ko : un `dump` de 4096 octets fait 8192 caracteres hexa. A 512
+            # octets par tour, la meme reponse demandait seize fois plus d'appels.
+            chunk = self._sock.recv(65536)
             if not chunk:
                 raise ConnectionError("la sonde a ferme la connexion")
             self._buf += chunk
@@ -62,8 +72,47 @@ class Probe:
     def press(self, key: str, frames: int = PRESS_FRAMES):
         return parse_state(self.ask(f"press {key} {frames}"))
 
+    def read(self, addr: int, taille: int = 8):
+        """Lit 8, 16 ou 32 bits. Rend None sur refus -- la raison est dans
+        `last_reply`, et elle compte : « hors region » et « lecture impossible »
+        n'appellent pas le meme geste."""
+        if taille not in (8, 16, 32):
+            raise ValueError(f"taille inattendue: {taille}")
+        reponse = self.ask(f"read{taille} 0x{addr:08X}")
+        if not reponse.startswith("ok "):
+            return None
+        valeur = reponse[3:].strip()
+        return int(valeur) if valeur.lstrip("-").isdigit() else None
+
+    def dump(self, addr: int, longueur: int):
+        """Rend `longueur` octets, ou None si la sonde refuse."""
+        reponse = self.ask(f"dump 0x{addr:08X} {longueur}")
+        if not reponse.startswith("ok "):
+            return None
+        try:
+            return bytes.fromhex(reponse[3:].strip())
+        except ValueError:
+            return None
+
+    def blocks(self, addr: int, longueur: int, taille_bloc: int = 256):
+        """Une somme par bloc : de quoi comparer deux instants sans transporter
+        la memoire entiere. Rend une liste d'entiers, ou None."""
+        reponse = self.ask(f"blocks 0x{addr:08X} {longueur} {taille_bloc}")
+        if not reponse.startswith("ok "):
+            return None
+        try:
+            return [int(x) for x in reponse[3:].split()]
+        except ValueError:
+            return None
+
     def close(self) -> None:
         self._sock.close()
+
+
+# Regions lisibles d'une GBA -- memes bornes que la sonde, cote Python pour
+# qu'un appelant puisse cadrer sa recherche sans faire l'aller-retour.
+EWRAM = (0x02000000, 0x00040000)   # 256 Ko : l'etat de partie vit surtout ici
+IWRAM = (0x03000000, 0x00008000)   # 32 Ko : pointeurs et variables de travail
 
 
 def parse_state(reply: str):

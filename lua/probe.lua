@@ -8,11 +8,35 @@
 --   ping                 -> ok pong
 --   state                -> ok x=<n> y=<n> g=<n> n=<n>
 --   press <KEY> [frames] -> ok x=<n> y=<n> g=<n> n=<n>   (etat APRES stabilisation)
+--   read8|16|32 <addr>   -> ok <valeur decimale>
+--   dump <addr> <len>    -> ok <hexa majuscule, len octets>
+--   blocks <a> <l> <b>   -> ok <somme par bloc de b octets>
 --   err <message>        en cas d'echec
 --
 -- KEY : A B SELECT START RIGHT LEFT UP DOWN R L
+--
+-- ⚠ POURQUOI LES TROIS LECTURES BRUTES. Cette sonde ne savait rendre que la
+-- position : chercher une adresse (le drapeau de combat, les PV adverses, le
+-- curseur d'un menu) etait donc IMPOSSIBLE, faute de pouvoir regarder ailleurs.
+-- Aucune carte memoire n'existe pour la version FR -- le pointeur ci-dessous a
+-- ete trouve par scan et correlation, et les suivants le seront pareil.
+--
+-- La methode que ces trois commandes servent :
+--   1. `blocks` sur une large plage, AVANT et APRES un changement connu ;
+--   2. comparer les sommes -> seuls quelques blocs ont bouge ;
+--   3. `dump` ces blocs-la, avant/apres, et comparer octet par octet ;
+--   4. `read8/16/32` pour confirmer un candidat sur plusieurs situations.
+-- Le tri se fait cote Python : la sonde ne decide rien, elle rend des octets.
 
 local PORT = 9601
+
+-- ⚠ LA SONDE DIT QUELLE SONDE ELLE EST, ET CE N'EST PAS DECORATIF.
+-- Le 2026-08-12, mGBA a repondu `ping` et `state` tout en ignorant les
+-- commandes de lecture memoire : une ancienne copie du script tournait encore
+-- (le README propose de COLLER le contenu, et un « rechargement » ne relit
+-- alors aucun fichier). Sans numero de version, « commande inconnue » est
+-- indiscernable d'une faute de frappe. Avec, la question se tranche en un tour.
+local VERSION = "2026-08-12 lecture-memoire"
 
 -- Pointeur du SaveBlock1 de Pokemon Rouge Feu (FR).
 -- Trouve par scan+correlation le 2026-07-08, pas par documentation.
@@ -69,14 +93,93 @@ local function state_line(st)
     return string.format("ok x=%d y=%d g=%d n=%d", st.x, st.y, st.g, st.n)
 end
 
+-- ---------------------------------------------------------------- memoire
+
+-- Regions lisibles d'une GBA. Une adresse hors de ces bornes n'est pas une
+-- adresse : la refuser BRUYAMMENT vaut mieux que rendre un zero, parce qu'un
+-- zero se lit comme une valeur et se compare comme une valeur.
+local REGIONS = {
+    { lo = 0x02000000, hi = 0x02040000, nom = "EWRAM" },
+    { lo = 0x03000000, hi = 0x03008000, nom = "IWRAM" },
+    { lo = 0x08000000, hi = 0x0A000000, nom = "ROM" },
+}
+
+-- ⚠ 1024 et pas 4096. `sock:send` peut n'ecrire qu'une PARTIE d'une longue
+-- ligne et rendre le nombre d'octets ecrits -- une reponse tronquee au milieu
+-- reste de l'hexadecimal valide, donc elle se relit comme des octets justes.
+-- On envoie en boucle (voir `envoyer`) ET on garde des lignes courtes : le
+-- surcout est quelques allers-retours de plus, le gain est qu'une troncature
+-- devient impossible plutot que discrete.
+local DUMP_MAX   = 1024      -- octets par `dump` (2048 caracteres hexa)
+local BLOCKS_MAX = 262144    -- plage maximale balayee par `blocks`
+
+-- Ecrit TOUT le texte, ou rend false. Borne pour ne jamais tourner sans fin.
+local function envoyer(sock, texte)
+    local reste, tours = texte, 0
+    while #reste > 0 do
+        tours = tours + 1
+        if tours > 10000 then
+            console:error("Envoi abandonne : le socket n'absorbe plus rien")
+            return false
+        end
+        local n, err = sock:send(reste)
+        if n then
+            reste = reste:sub(n + 1)
+        elseif err ~= socket.ERRORS.AGAIN then
+            return false
+        end
+    end
+    return true
+end
+
+local function region_de(addr, taille)
+    for _, r in ipairs(REGIONS) do
+        if addr >= r.lo and (addr + taille) <= r.hi then
+            return r
+        end
+    end
+    return nil
+end
+
+-- Accepte 0x02000000 comme 33554432.
+-- ⚠ SANS BASE EXPLICITE, ET C'EST VOULU : `tonumber("0x20", 16)` rend nil,
+-- parce qu'avec une base imposee Lua refuse le prefixe. Sans base, il comprend
+-- l'hexadecimal nativement. Le piege est silencieux -- il rend nil, pas une
+-- erreur -- donc il ressemblerait a une adresse mal tapee.
+local function parse_addr(texte)
+    if not texte or texte == "" then return nil end
+    return tonumber(texte)
+end
+
+-- Rend une chaine d'octets, en une fois si mGBA le permet.
+-- ⚠ `emu.readRange` n'existe pas partout, et sonder un champ absent sur un
+-- userdata peut LEVER au lieu de rendre nil. On tente donc l'appel sous pcall
+-- et on retombe sur la boucle octet par octet -- plus lente, toujours valable.
+local function lire_octets(addr, len)
+    local ok, res = pcall(function() return emu:readRange(addr, len) end)
+    if ok and type(res) == "string" and #res == len then
+        return res
+    end
+    local morceaux = {}
+    for i = 0, len - 1 do
+        morceaux[#morceaux + 1] = string.char(emu:read8(addr + i))
+    end
+    return table.concat(morceaux)
+end
+
 -- ---------------------------------------------------------------- requetes
 
 local function handle(sock, line)
-    local verb, arg1, arg2 = line:match("^(%S+)%s*(%S*)%s*(%S*)")
+    local verb, arg1, arg2, arg3 = line:match("^(%S+)%s*(%S*)%s*(%S*)%s*(%S*)")
     verb = (verb or ""):lower()
 
     if verb == "ping" then
         sock:send("ok pong\n")
+        return
+    end
+
+    if verb == "version" then
+        sock:send("ok " .. VERSION .. "\n")
         return
     end
 
@@ -104,6 +207,102 @@ local function handle(sock, line)
         emu:setKeys(mask)
         pending = { sock = sock, hold = frames, settle = SETTLE_FRAMES }
         -- La reponse part quand le monde s'est stabilise (voir on_frame).
+        return
+    end
+
+    if verb == "read8" or verb == "read16" or verb == "read32" then
+        local taille = tonumber(verb:sub(5)) / 8
+        local addr = parse_addr(arg1)
+        if not addr then
+            sock:send("err adresse illisible: " .. tostring(arg1) .. "\n")
+            return
+        end
+        if not region_de(addr, taille) then
+            sock:send(string.format("err adresse hors region lisible: 0x%08X\n", addr))
+            return
+        end
+        local ok, valeur = pcall(function()
+            if taille == 1 then return emu:read8(addr) end
+            if taille == 2 then return emu:read16(addr) end
+            return emu:read32(addr)
+        end)
+        if ok then
+            sock:send("ok " .. tostring(valeur) .. "\n")
+        else
+            sock:send("err lecture impossible: " .. tostring(valeur) .. "\n")
+        end
+        return
+    end
+
+    if verb == "dump" then
+        local addr = parse_addr(arg1)
+        local len = tonumber(arg2)
+        if not addr or not len then
+            sock:send("err usage: dump <addr> <len>\n")
+            return
+        end
+        if len < 1 or len > DUMP_MAX then
+            sock:send("err longueur hors bornes (1-" .. DUMP_MAX .. ")\n")
+            return
+        end
+        if not region_de(addr, len) then
+            sock:send(string.format("err plage hors region lisible: 0x%08X+%d\n", addr, len))
+            return
+        end
+        local ok, octets = pcall(lire_octets, addr, len)
+        if not ok then
+            sock:send("err lecture impossible: " .. tostring(octets) .. "\n")
+            return
+        end
+        local hexa = {}
+        for i = 1, #octets do
+            hexa[i] = string.format("%02X", octets:byte(i))
+        end
+        envoyer(sock, "ok " .. table.concat(hexa) .. "\n")
+        return
+    end
+
+    if verb == "blocks" then
+        local addr = parse_addr(arg1)
+        local len = tonumber(arg2)
+        local taille_bloc = tonumber(arg3) or 256
+        if not addr or not len then
+            sock:send("err usage: blocks <addr> <len> [taille_bloc]\n")
+            return
+        end
+        if len < 1 or len > BLOCKS_MAX then
+            sock:send("err longueur hors bornes (1-" .. BLOCKS_MAX .. ")\n")
+            return
+        end
+        if taille_bloc < 16 or taille_bloc > len then
+            sock:send("err taille de bloc hors bornes (16.." .. len .. ")\n")
+            return
+        end
+        if not region_de(addr, len) then
+            sock:send(string.format("err plage hors region lisible: 0x%08X+%d\n", addr, len))
+            return
+        end
+        -- Une somme par bloc : comparer deux releves designe les blocs qui ont
+        -- bouge, sans transporter la memoire entiere sur le fil.
+        local sommes = {}
+        local ok, err = pcall(function()
+            local pos = 0
+            while pos < len do
+                local n = math.min(taille_bloc, len - pos)
+                local octets = lire_octets(addr + pos, n)
+                local s = 0
+                for i = 1, #octets do
+                    s = (s + octets:byte(i) * i) % 4294967296
+                end
+                sommes[#sommes + 1] = tostring(s)
+                pos = pos + n
+            end
+        end)
+        if not ok then
+            sock:send("err lecture impossible: " .. tostring(err) .. "\n")
+            return
+        end
+        envoyer(sock, "ok " .. table.concat(sommes, " ") .. "\n")
         return
     end
 
@@ -192,7 +391,7 @@ else
     else
         server:add("received", on_accept)
         callbacks:add("frame", on_frame)
-        console:log("Sonde Rouge Feu FR -- ecoute sur le port " .. PORT)
-        console:log("Verifiez d'abord : 'state' doit rendre des coordonnees plausibles.")
+        console:log("Sonde Rouge Feu FR [" .. VERSION .. "] -- port " .. PORT)
+        console:log("Verifiez : python chasse.py verifier")
     end
 end

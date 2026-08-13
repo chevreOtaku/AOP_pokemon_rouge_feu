@@ -3,8 +3,10 @@
 Une brique : elle sait lire l'etat du jeu et appuyer sur les boutons.
 **Elle ne sait pas qui joue, et c'est voulu.**
 
-> **Statut : etape 3.** La sonde, le marcheur manuel et le client de protocole
-> existent. Le protocole est branche et verifie contre un moteur reel.
+> **Statut : etape 3 + lecture memoire.** La sonde, le marcheur manuel et le
+> client de protocole existent ; le protocole est branche et verifie contre un
+> moteur reel. Depuis le 2026-08-13 la sonde lit aussi la memoire arbitraire, et
+> les PV des deux combattants sont trouves ([`adresses.py`](adresses.py)).
 
 ---
 
@@ -184,6 +186,61 @@ Aucun contexte accumule, aucune memoire, aucune identite. Elle envoie des
 differentiels et oublie. L'accuse de session du moteur porte un `characterId` :
 **il n'est pas lu.** La brique ne sait pas qui joue.
 
+## Chercher une adresse -- `chasse.py`
+
+**Aucune carte memoire n'existe pour la version FR.** Chaque adresse se trouve
+par scan et correlation. `chasse.py` ne cherche rien tout seul : il capture la
+memoire a des instants que **vous** choisissez, et reduit les candidats en
+comparant ces instants.
+
+```
+python chasse.py verifier                    # l'auto-test, apres CHAQUE rechargement du Lua
+python chasse.py capture <etiquette>         # EWRAM + IWRAM -> chasse/<etiquette>.bin
+python chasse.py diff  <a> <b>  [--taille 1|2|4] [--parmi c.txt] [--sortie c.txt]
+python chasse.py egal  <a> <b>  [...]        # l'inverse : ce qui n'a PAS bouge
+python chasse.py valeur <capture> --egale 22 # les adresses portant une valeur connue
+python chasse.py montrer <captures...> --adresses 0x... --parmi c.txt
+python chasse.py lire 0x020242DA --taille 2  # en direct, sans capture
+```
+
+### ⚠⚠ Chercher une SIGNATURE, pas un nombre
+
+C'est la lecon la plus rentable de la premiere chasse, et elle est generale.
+
+| approche | resultat mesure |
+|---|---|
+| chercher **un nombre** (les PV lus a l'ecran) | **40 adresses** dans une seule capture, la bonne noyee |
+| chercher une **forme** -- `<niveau 1..100> <0xFF> <PV> <max>` + 5 stats plausibles | **une paire par equipe et par capture** |
+
+⚠ Et la comparaison d'etats (« ce qui change entre en-combat et hors-combat »)
+**ne converge pas** : 53 240 -> 49 293 candidats en trois croisements. La raison
+est structurelle -- *deux captures ne different jamais par UNE chose*, mais par
+une dizaine a la fois.
+
+Les adresses trouvees, avec la mesure qui les etablit, vivent dans
+[`adresses.py`](adresses.py). Les nombres et le recit complet sont dans les
+notes de terrain gaming (`mesures/`).
+
+## Ce que le sujet a le droit de voir -- `perception.py`
+
+⚠ **Ce qui est LU n'est pas ce qui est MONTRE.** Les PV adverses se lisent
+exactement -- c'est le critere de delta -- et ne s'exposent **jamais** : ce qui
+part vers un moteur est une **bande** (*intact · a peine entame · entame · mal en
+point · presque a terre · a terre*), pas un entier.
+
+Deux raisons, et la seconde est la plus forte :
+
+1. **Le jeu lui-meme ne montre qu'une barre** pour l'adversaire. Donner l'entier
+   serait donner plus qu'a un joueur humain.
+2. Une decision prise sur un chiffre exact n'est pas la meme decision. *« Il lui
+   reste 5 PV »* se calcule ; *« il est presque a terre »* se juge.
+
+⚠ Le flou est **deterministe** : un flou tire au hasard fuirait, puisqu'en
+observant plusieurs fois on moyennerait le bruit et on retrouverait le nombre.
+Il vient de la **grossierete de l'echelle**, jamais d'un tirage.
+
+⚠ Les seuils (50 %, 20 %) sont ceux du JEU -- ceux ou sa barre change de couleur.
+
 ## Comment la position est lue
 
 | | |
@@ -213,11 +270,22 @@ Une ligne par requete, une ligne par reponse.
 | requete | reponse |
 |---|---|
 | `ping` | `ok pong` |
+| `version` | `ok <version de la sonde>` |
 | `state` | `ok x=<n> y=<n> g=<n> n=<n>` |
 | `press <KEY> [frames]` | `ok x=<n> y=<n> g=<n> n=<n>` -- l'etat **apres stabilisation** |
+| `read8｜read16｜read32 <addr>` | `ok <valeur decimale>` |
+| `dump <addr> <len>` | `ok <hexa majuscule>` -- `len` <= 1024 |
+| `blocks <addr> <len> [taille]` | `ok <une somme par bloc>` -- `len` <= 262144 |
 | (erreur) | `err <message>` |
 
 `KEY` : `A B SELECT START RIGHT LEFT UP DOWN R L`
+Les adresses acceptent `0x02024082` comme `33702018`.
+
+⚠ **`version` n'est pas decoratif.** Charger un script pendant qu'un autre tient
+deja le port ne remplace rien : le nouveau echoue a s'installer (port fixe, echec
+bruyant -- voir plus haut) et **l'ancien continue de repondre**. Symptome :
+`ping` marche, les commandes recentes sont « inconnues ». Sans numero de version,
+c'est indiscernable d'une faute de frappe.
 
 **Pourquoi la reponse arrive apres coup** : un pas prend une quinzaine de frames.
 Lire immediatement apres le relachement rendrait une position prise au milieu du
@@ -225,6 +293,18 @@ mouvement, et l'avant/apres ne voudrait plus rien dire.
 
 ## Pieges connus
 
+- ⚠⚠ **NE JAMAIS METTRE L'EMULATEUR EN PAUSE POUR LIRE.** mGBA suspend les
+  rappels du script : la sonde cesse de repondre, le client expire, et **elle ne
+  s'en remet pas** -- il faut relancer mGBA. Mesure du 2026-08-13 : capture sans
+  pause reussie · capture en pause expiree · capture suivante refusee.
+  Pour un moment tranquille, prendre le menu d'attaques d'un combat : le jeu
+  tourne, mais rien ne s'anime.
+- ⚠⚠ **La sonde ne survit pas a un client qui abandonne** -- defaut connu, non
+  corrige. Apres un delai depasse cote client, le port cesse d'accepter des
+  connexions et seul un redemarrage de mGBA la remet en service. Elle devrait
+  se remettre a ecouter ; elle ne le fait pas.
+- **Charger un script pendant qu'un autre tient le port ne remplace rien** (voir
+  `version` plus haut).
 - **Un dialogue ouvert avale les pas.** Ils ne changent rien. Le fermer par `A`
   avant de marcher.
 - **Un mur se lit comme une coordonnee inchangee** apres l'appui. C'est aussi la
@@ -232,6 +312,11 @@ mouvement, et l'avant/apres ne voudrait plus rien dire.
   separe.
 - **`mapGroup == 255`** signale une transition de porte : l'etat est instable, il
   ne faut pas conclure dessus.
+- ⚠ **Une capture prise pendant une TRANSITION rend des zeros qui ressemblent a
+  une absence.** Une capture du 2026-08-13, prise pendant le fondu de fin de
+  combat, ne contenait aucune fiche de Pokemon ; les memes adresses, quelques
+  secondes plus tard, les portaient intactes. **Un zero se verifie a un second
+  instant avant d'etre cru.**
 
 ## Licence
 

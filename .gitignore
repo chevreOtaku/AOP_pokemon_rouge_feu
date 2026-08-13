@@ -13,6 +13,20 @@ config.local.*
 # compte se promeut deliberement dans la doc, avec le nombre qu'elle produit.
 traces/
 
+# Captures memoire de la chasse aux adresses : ~288 Ko chacune, produites en
+# serie, et sans valeur hors de la session qui les a faites. Ce qui compte est
+# l'ADRESSE trouvee -- elle se note dans le code, avec la methode qui l'a
+# trouvee, jamais le tas d'octets qui a servi a la trouver.
+chasse/
+
+# Listes de candidats produites par `chasse.py --sortie`. Regenerables depuis
+# les captures, et perimees des la capture suivante : ce qui compte est
+# l'ADRESSE retenue, et elle finit dans adresses.py avec sa methode.
+/c.txt
+/c16.txt
+/pv.txt
+candidats*.txt
+
 # Artefacts d'emulateur : ROM, sauvegardes, savestates, captures.
 # Rien de tout cela n'a a etre versionne.
 *.gba
