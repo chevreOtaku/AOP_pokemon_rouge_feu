@@ -182,9 +182,10 @@ mesurer l'arithmetique et pas le deplacement.
 
 ### Ce que la brique ne fait pas, et ne fera pas ici
 
-Aucun contexte accumule, aucune memoire, aucune identite. Elle envoie des
+Aucun contexte accumule, aucun etat conserve entre deux tours. Elle envoie des
 differentiels et oublie. L'accuse de session du moteur porte un `characterId` :
-**il n'est pas lu.** La brique ne sait pas qui joue.
+**il n'est pas lu** -- un pont sans etat rend une mesure reproductible, un pont
+qui se souvient rend une mesure qui depend de son passe.
 
 ## Chercher une adresse -- `chasse.py`
 
@@ -220,26 +221,6 @@ une dizaine a la fois.
 Les adresses trouvees, avec la mesure qui les etablit, vivent dans
 [`adresses.py`](adresses.py). Les nombres et le recit complet sont dans les
 notes de terrain gaming (`mesures/`).
-
-## Ce que le sujet a le droit de voir -- `perception.py`
-
-⚠ **Ce qui est LU n'est pas ce qui est MONTRE.** Les PV adverses se lisent
-exactement -- c'est le critere de delta -- et ne s'exposent **jamais** : ce qui
-part vers un moteur est une **bande** (*intact · a peine entame · entame · mal en
-point · presque a terre · a terre*), pas un entier.
-
-Deux raisons, et la seconde est la plus forte :
-
-1. **Le jeu lui-meme ne montre qu'une barre** pour l'adversaire. Donner l'entier
-   serait donner plus qu'a un joueur humain.
-2. Une decision prise sur un chiffre exact n'est pas la meme decision. *« Il lui
-   reste 5 PV »* se calcule ; *« il est presque a terre »* se juge.
-
-⚠ Le flou est **deterministe** : un flou tire au hasard fuirait, puisqu'en
-observant plusieurs fois on moyennerait le bruit et on retrouverait le nombre.
-Il vient de la **grossierete de l'echelle**, jamais d'un tirage.
-
-⚠ Les seuils (50 %, 20 %) sont ceux du JEU -- ceux ou sa barre change de couleur.
 
 ## Comment la position est lue
 

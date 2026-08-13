@@ -4,8 +4,8 @@ Elle inscrit quatre deplacements, recoit des actions d'un moteur, les execute
 dans mGBA par la sonde, et rend compte du monde.
 
 Elle ne tient AUCUN contexte : elle envoie des differentiels et oublie. Pas de
-memoire, pas d'identite, pas de VTuber. C'est voulu -- a ce jalon, l'invariant
-d'isolation des sujets n'est meme pas en jeu.
+memoire, pas d'etat accumule. C'est voulu -- un pont doit rester sans etat pour
+qu'une mesure soit reproductible.
 
 ⚠⚠ LA CONVENTION DE RESULTAT -- la seule piece que personne d'autre ne fournit,
 et la raison d'etre de ce fichier :
@@ -16,7 +16,7 @@ et la raison d'etre de ce fichier :
   3. Le monde revient ENSUITE, par un `context` portant l'etat AVANT et APRES.
      Motif sanctionne par le linter de Gary : « send a "validation" success
      result immediately and follow up later with a `context` message ».
-  4. Jamais « j'ai reussi ». La brique CONSTATE, le sujet JUGE. Le succes est
+  4. Jamais « j'ai reussi ». La brique CONSTATE, le moteur JUGE. Le succes est
      une relation entre une intention et le monde ; la brique n'a que le monde.
 
 Usage :

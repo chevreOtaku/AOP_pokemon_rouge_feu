@@ -6,8 +6,8 @@ chacune porte la mesure qui l'a confirmee. Une adresse sans sa methode est
 invérifiable : le jour ou elle cesse d'etre juste, on ne saurait ni pourquoi
 ni comment la retrouver.
 
-⚠ CE FICHIER NE SAIT PAS QUI JOUE, et ne doit jamais l'apprendre. Il decrit
-un JEU. Le sujet, sa memoire et ses decisions vivent ailleurs.
+⚠ CE FICHIER DECRIT UN JEU, rien d'autre. Aucun etat de moteur, aucune memoire :
+ce pont reste sans etat pour qu'une mesure soit reproductible.
 """
 
 # --------------------------------------------------------------- position
