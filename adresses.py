@@ -83,7 +83,32 @@ PV_MAX = +2
 # du script Lua, la sonde cesse de repondre, et elle ne s'en remet pas -- il
 # faut relancer mGBA.
 #
-# ⚠ STABILITE NON ETABLIE ENTRE DEUX LANCEMENTS DU JEU. Ces adresses ont tenu
-# a travers plusieurs combats et retours au monde ouvert DANS UNE MEME SESSION.
-# Personne n'a verifie qu'elles survivent a un redemarrage, ni a une autre
-# sauvegarde. A revalider avant d'en dependre.
+# ✅ STABILITE ETABLIE LE 2026-08-15 -- la reserve ci-dessous est LEVEE.
+#
+# Cette ligne a dit « non etablie » jusqu'au 15/08. Elle disait vrai le 13, et
+# elle serait devenue un avertissement perime qui se lit comme un etat present :
+# c'est le mode de peremption le plus couteux d'un document, parce qu'il ne se
+# voit pas. Elle est donc reecrite le jour meme de la mesure.
+#
+# CE QUI A ETE VERIFIE, et les deux conditions posees le 13/08 sont couvertes :
+#   - mGBA a ete relance entre le 13 et le 15
+#   - une AUTRE sauvegarde a ete chargee entre-temps (partie personnelle, puis
+#     retour a la sienne)
+#
+# METHODE : cinq predictions ECRITES AVANT la lecture, tirees d'une source
+# INDEPENDANTE de la memoire -- l'OCR de l'ecran de combat, qui rend les noms et
+# les niveaux mais pas les PV (mesure : deux lectures des memes pixels rendent
+# « 21Z » puis « 20 ZL »).
+#
+#   attendu : niveau 6 et niveau 3 · PV max plausibles · PV <= max
+#   lu      : 6 · 21/21     et     3 · 14/14
+#
+# ⚠ C'est la CONCORDANCE DES DEUX NIVEAUX qui prouve, pas les PV : une fiche
+# perimee porterait le combat precedent, donc un autre couple de niveaux. Deux
+# valeurs justes simultanement contre une source qui n'a pas servi a trouver les
+# adresses n'est pas une coincidence.
+#
+# ➜ CE CONTROLE EST DEVENU PERMANENT : `etat.py` rend le niveau, et le
+# consommateur le compare a celui lu a l'ecran. Une divergence signale une fiche
+# perimee -- c'est le drapeau « en combat » qu'aucune chasse memoire n'a trouve,
+# obtenu par redondance au lieu d'une adresse.

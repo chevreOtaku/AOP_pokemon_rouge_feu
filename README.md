@@ -3,10 +3,13 @@
 Une brique : elle sait lire l'etat du jeu et appuyer sur les boutons.
 **Elle ne sait pas qui joue, et c'est voulu.**
 
-> **Statut : etape 3 + lecture memoire.** La sonde, le marcheur manuel et le
-> client de protocole existent ; le protocole est branche et verifie contre un
-> moteur reel. Depuis le 2026-08-13 la sonde lit aussi la memoire arbitraire, et
-> les PV des deux combattants sont trouves ([`adresses.py`](adresses.py)).
+> **Statut : etape 3 + lecture memoire + etat de combat.** La sonde, le marcheur
+> manuel et le client de protocole existent ; le protocole est branche et verifie
+> contre un moteur reel. Depuis le 2026-08-13 la sonde lit la memoire arbitraire
+> et les PV des deux combattants sont trouves ([`adresses.py`](adresses.py)).
+> Depuis le 2026-08-15, [`etat.py`](etat.py) expose l'**etat de combat** en JSON,
+> et les adresses sont **revalidees** a travers un redemarrage de mGBA et un
+> changement de sauvegarde.
 
 ---
 
@@ -186,6 +189,41 @@ Aucun contexte accumule, aucun etat conserve entre deux tours. Elle envoie des
 differentiels et oublie. L'accuse de session du moteur porte un `characterId` :
 **il n'est pas lu** -- un pont sans etat rend une mesure reproductible, un pont
 qui se souvient rend une mesure qui depend de son passe.
+
+## Lire l'etat d'un combat -- `etat.py`
+
+Une lecture, une reponse JSON, et on oublie. C'est l'**ETAT**, la premiere des
+trois choses qu'un pont expose ; les ACTIONS et le RESULTAT n'en sont pas.
+
+```
+python etat.py              # JSON sur la sortie standard
+python etat.py --lisible    # pour un humain
+```
+
+```json
+{"sonde": "ok",
+ "joueur":  {"niveau": 6, "pv": 21, "pv_max": 21, "plausible": true, "pourquoi": ""},
+ "adverse": {"niveau": 3, "pv": 14, "pv_max": 14, "plausible": true, "pourquoi": ""}}
+```
+
+⚠⚠ **Il ne dit JAMAIS « on est en combat »,** parce qu'il ne peut pas le savoir :
+la fiche adverse **survit a la fin du combat**, et une fiche perimee se lit
+exactement comme une fiche vivante. Il rend un verdict de **plausibilite** --
+« ces octets decrivent un combattant » -- et l'appelant tranche avec ce qu'il
+voit par ailleurs.
+
+⚠ **Le controle de fraicheur est du cote de l'appelant, et il est gratuit** : le
+niveau figure ici ET sur l'ecran du jeu. S'ils divergent, les octets decrivent un
+autre combat.
+
+⚠ **`plausible: false` n'est pas une panne.** Une lecture prise pendant un fondu
+de transition rend des structures vides. Ce module ne relit pas de lui-meme -- il
+declare, et laisse l'appelant decider d'attendre, parce qu'attendre ici bloquerait
+sa boucle.
+
+⚠ **L'echec de connexion sort en JSON lui aussi** (code 2). Un appelant qui parse
+la sortie n'a pas a distinguer « du JSON » d'« un message d'erreur » : deux formes
+obligeraient a deux chemins de lecture, et c'est le second qu'on oublie d'ecrire.
 
 ## Chercher une adresse -- `chasse.py`
 
