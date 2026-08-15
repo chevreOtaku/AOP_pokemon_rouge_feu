@@ -225,6 +225,47 @@ sa boucle.
 la sortie n'a pas a distinguer « du JSON » d'« un message d'erreur » : deux formes
 obligeraient a deux chemins de lecture, et c'est le second qu'on oublie d'ecrire.
 
+## Appuyer sur un bouton -- `presser.py`
+
+```
+python presser.py A
+python presser.py DOWN --frames 6
+```
+
+```json
+{"presse": true, "touche": "DOWN", "position_apres": {"x": 12, "y": 37, "g": 3, "n": 19},
+ "note": "la position n'a aucun sens en menu -- relire l'ecran"}
+```
+
+⚠⚠ **`presse: true` veut dire « la sonde a accepte la pression », PAS « ca a
+marche ».** `position_apres` est la position du PERSONNAGE : utile pour marcher,
+sans aucun sens dans un menu ou elle ne bouge pas. **Un appelant qui veut savoir
+ce que la pression a fait doit RELIRE l'ecran.**
+
+⚠ Une touche inconnue est refusee **avant** d'ouvrir la connexion : c'est une
+faute d'appelant, pas une panne de sonde.
+
+### ⚠⚠⚠ Trois etats, jamais deux -- une sonde morte se lit comme un mur
+
+Mesure du 2026-08-15. La sonde est morte en pleine sequence de pressions (voir
+« Pieges connus »), et le client a alors observe, a chaque appel, que **le
+curseur n'avait pas bouge** -- exactement ce qu'il observerait devant une butee.
+
+> Un navigateur qui ne distingue pas les deux conclut « je suis arrive » et
+> valide le mauvais choix, en silence.
+
+Un client qui presse doit donc separer :
+
+```
+deplacement   la pression a porte, l'ecran a change
+butee         la pression a porte, l'ecran n'a pas change
+echec         la pression n'a PAS eu lieu -- rien n'est conclu
+```
+
+⚠ **Et le cout est structurel** : presser plusieurs fois par tour exerce
+beaucoup plus fort la fragilite decrite plus bas qu'une simple lecture. Chaque
+mort coute un redemarrage de mGBA. **Le correctif de fond est cote sonde.**
+
 ## Chercher une adresse -- `chasse.py`
 
 **Aucune carte memoire n'existe pour la version FR.** Chaque adresse se trouve
