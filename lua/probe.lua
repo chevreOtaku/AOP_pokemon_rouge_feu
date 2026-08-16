@@ -36,7 +36,7 @@ local PORT = 9601
 -- (le README propose de COLLER le contenu, et un « rechargement » ne relit
 -- alors aucun fichier). Sans numero de version, « commande inconnue » est
 -- indiscernable d'une faute de frappe. Avec, la question se tranche en un tour.
-local VERSION = "2026-08-12 lecture-memoire"
+local VERSION = "2026-08-16 survit-au-client-parti"
 
 -- Pointeur du SaveBlock1 de Pokemon Rouge Feu (FR).
 -- Trouve par scan+correlation le 2026-07-08, pas par documentation.
@@ -64,6 +64,13 @@ local SETTLE_FRAMES        = 10
 local server = nil
 local clients = {}
 local pending = nil   -- { sock, mask, hold, settle }
+
+-- ⚠⚠⚠ COMPTEUR MONOTONE, JAMAIS `#clients + 1`.
+-- En Lua, `#` sur une table A TROUS est INDEFINI : retirer un client cree un
+-- trou, et l'identifiant suivant peut retomber sur une case encore VIVANTE.
+-- Elle serait alors ecrasee sans etre fermee -- un socket fuit, et le callback
+-- de l'ancien client pointe desormais sur le nouveau.
+local prochain_id = 0
 
 -- ---------------------------------------------------------------- lecture
 
@@ -337,6 +344,24 @@ end
 
 -- ---------------------------------------------------------------- sockets
 
+-- Retire un client et LIBERE son socket. ⚠ Un seul endroit fait ce menage :
+-- quand il etait duplique, une des deux copies oubliait le `close()`.
+local function oublier(id, raison)
+    local sock = clients[id]
+    if not sock then return end
+    clients[id] = nil
+    -- ⚠ Une touche maintenue par un client parti resterait ENFONCEE. On la
+    -- relache avant tout le reste : le jeu ne doit rien garder d'un client mort.
+    if pending and pending.sock == sock then
+        emu:setKeys(0)
+        pending = nil
+    end
+    -- ⚠ `pcall` : fermer un socket deja mort peut lever, et une erreur ici
+    -- tuerait le rappel qui l'appelle -- donc l'ecoute avec.
+    pcall(function() sock:close() end)
+    console:log("Client parti (" .. tostring(raison) .. ")")
+end
+
 local function on_received(id)
     local sock = clients[id]
     if not sock then return end
@@ -348,12 +373,7 @@ local function on_received(id)
             end
         else
             if err ~= socket.ERRORS.AGAIN then
-                clients[id] = nil
-                if pending and pending.sock == sock then
-                    emu:setKeys(0)
-                    pending = nil
-                end
-                sock:close()
+                oublier(id, err)
             end
             return
         end
@@ -366,11 +386,18 @@ local function on_accept()
         console:error("accept: " .. tostring(err))
         return
     end
-    local id = #clients + 1
+    prochain_id = prochain_id + 1
+    local id = prochain_id
     clients[id] = sock
+    -- ⚠⚠ LE CHEMIN D'ERREUR FERMAIT LA CASE SANS FERMER LE SOCKET.
+    -- Defaut mesure le 2026-08-15 : un client Python qui abandonne apres un
+    -- delai depasse passe par ICI, pas par `received`. Le socket fuyait a
+    -- chaque abandon, et la sonde finissait par ne plus accepter personne --
+    -- seul un redemarrage de mGBA la remettait en service. Les deux chemins
+    -- appellent desormais le meme menage.
     sock:add("received", function() on_received(id) end)
-    sock:add("error", function() clients[id] = nil end)
-    console:log("Client connecte")
+    sock:add("error", function() oublier(id, "erreur socket") end)
+    console:log("Client connecte (#" .. id .. ")")
 end
 
 -- Port FIXE, echec BRUYANT. On ne reprend PAS l'auto-increment de
