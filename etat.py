@@ -29,12 +29,19 @@ import argparse
 import json
 import sys
 
-from adresses import NIVEAU, PV_ADVERSE, PV_EQUIPE, PV_MAX
+from adresses import (NIVEAU, PV_ADVERSE, PV_EQUIPE, PV_MAX, STAGE_NEUTRE,
+                      STAGES_ADVERSE, STAGES_EQUIPE)
 from probe import DEFAULT_HOST, DEFAULT_PORT, Probe
 
 # Bornes de plausibilite. Elles ne prouvent pas qu'une fiche est VIVANTE --
 # seulement qu'elle n'est pas manifestement vide ou en cours de transition.
 NIVEAU_MIN, NIVEAU_MAX = 1, 100
+
+# Les sept modificateurs, dans l'ordre ou la memoire les range. L'emplacement 0
+# est prevu pour les PV et ne sert pas.
+NOMS_STAGES = ("", "attaque", "defense", "vitesse", "attaque_speciale",
+               "defense_speciale", "precision", "esquive")
+STAGE_MIN, STAGE_MAX = 0, 12
 
 
 def lire_fiche(sonde, base):
@@ -65,12 +72,33 @@ def lire_fiche(sonde, base):
     return fiche
 
 
+def lire_stages(sonde, base):
+    """Les modificateurs de statistiques, en CRANS relatifs au neutre.
+
+    ⚠ On rend le nombre de crans (`-1`, `+2`), pas la valeur brute (5, 8) :
+    l'octet stocke est un detail d'implementation du jeu, et le cran est ce que
+    le jeu ANNONCE quand il change (« l'ATTAQUE de X baisse ! »).
+
+    ⚠⚠ Rend `None` si les octets ne decrivent pas un tableau plausible. Hors
+    combat cette zone porte des restes, et un tableau de restes se lit comme un
+    tableau valide -- meme piege que la fiche adverse.
+    """
+    brut = [sonde.read(base + i, 8) for i in range(len(NOMS_STAGES))]
+    if any(v is None or not STAGE_MIN <= v <= STAGE_MAX for v in brut):
+        return None
+    return {nom: brut[i] - STAGE_NEUTRE
+            for i, nom in enumerate(NOMS_STAGES) if nom}
+
+
 def etat(sonde):
-    return {
-        "sonde": "ok",
-        "joueur": lire_fiche(sonde, PV_EQUIPE),
-        "adverse": lire_fiche(sonde, PV_ADVERSE),
-    }
+    joueur = lire_fiche(sonde, PV_EQUIPE)
+    adverse = lire_fiche(sonde, PV_ADVERSE)
+    # ⚠ Les modificateurs vivent dans une AUTRE structure que les fiches
+    # d'equipe -- une structure de COMBAT, qui n'existe que pendant un combat.
+    # Ils sont donc lus separement et peuvent manquer alors que les PV sont la.
+    joueur["stages"] = lire_stages(sonde, STAGES_EQUIPE)
+    adverse["stages"] = lire_stages(sonde, STAGES_ADVERSE)
+    return {"sonde": "ok", "joueur": joueur, "adverse": adverse}
 
 
 def _principal():
