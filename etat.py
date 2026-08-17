@@ -92,6 +92,12 @@ def _principal():
         print(json.dumps(panne, ensure_ascii=False))
         return 2
 
+    # ⚠⚠⚠ UN `except`, PAS SEULEMENT UN `finally`. `Probe.ask()` LEVE
+    # (`ConnectionError`, `socket.timeout`), et sans ce filet ce script crachait
+    # un TRACEBACK a la place du JSON -- exactement ce que le docstring de ce
+    # fichier interdit. Le defaut a ete mesure sur le module frere le 2026-08-16 :
+    # l'appelant a lu « reponse illisible » et interrompu son travail alors que
+    # la sonde etait vivante.
     try:
         if sonde.ask("ping") != "ok pong":
             panne = {"sonde": f"repond mais pas 'pong' : {sonde.last_reply}",
@@ -99,6 +105,11 @@ def _principal():
             print(json.dumps(panne, ensure_ascii=False))
             return 2
         resultat = etat(sonde)
+    except (OSError, ConnectionError) as e:
+        panne = {"sonde": f"{type(e).__name__} pendant la lecture : {e}",
+                 "joueur": None, "adverse": None}
+        print(json.dumps(panne, ensure_ascii=False))
+        return 2
     finally:
         sonde.close()
 

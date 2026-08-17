@@ -54,6 +54,15 @@ def _principal():
                          ensure_ascii=False))
         return 2
 
+    # ⚠⚠⚠ UN `except`, PAS SEULEMENT UN `finally`. `Probe.ask()` LEVE --
+    # `ConnectionError` si la sonde ferme la connexion, `socket.timeout` si elle
+    # tarde -- et sans ce filet l'exception remontait : ce script crachait un
+    # TRACEBACK a la place du JSON. Mesure du 2026-08-16 : l'appelant a rapporte
+    # « reponse illisible du pont » et a interrompu sa cartographie, alors que la
+    # sonde etait parfaitement vivante.
+    # La regle est ecrite dans `etat.py` -- « deux formes de sortie obligeraient
+    # a deux chemins de lecture, et c'est le second qu'on oublie d'ecrire » --
+    # et elle etait violee ici.
     try:
         if sonde.ask("ping") != "ok pong":
             print(json.dumps({"presse": False,
@@ -73,6 +82,11 @@ def _principal():
                    "message": sonde.last_reply,
                    "note": "la position n'a aucun sens en menu -- relire "
                            "l'ecran pour savoir ce que la pression a fait"}
+    except (OSError, ConnectionError) as e:
+        # ⚠ On nomme le TYPE : « timed out » et « connexion fermee » n'appellent
+        # pas le meme geste, et les reduire a « erreur » perdrait la difference.
+        reponse = {"presse": False, "touche": touche,
+                   "message": f"{type(e).__name__} pendant la pression : {e}"}
     finally:
         sonde.close()
 
