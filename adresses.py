@@ -54,6 +54,45 @@ PAS_EQUIPE = 100
 NIVEAU = -2
 PV_MAX = +2
 
+# ------------------------------------------- modificateurs de statistiques
+#
+# Trouves le 2026-08-16. ⚠ PAS dans les fiches d'equipe ci-dessus : celles-ci
+# sont espacees de 600 = 6 x 100, le pas d'une EQUIPE. Les modificateurs vivent
+# dans une structure de COMBAT separee, qui n'existe que pendant un combat.
+# Une premiere recherche a echoue en scrutant le voisinage des fiches d'equipe :
+# l'hypothese « les modificateurs sont pres d'elles » etait fausse.
+#
+# METHODE -- signature structurelle, encore, et une prediction posee d'avance :
+# les sept modificateurs (attaque, defense, vitesse, atq.spe, def.spe,
+# precision, esquive) sont contigus, neutres a 6, bornes 0..12. Un tableau
+# intact est donc une suite de HUIT octets valant exactement 6 (le premier
+# emplacement, prevu pour les PV, ne sert pas).
+#
+# RESULTAT : sur 262 144 octets d'EWRAM, **une seule** suite de 8 x 0x06.
+# Et a exactement +88 -- le pas d'une entree de structure de combat -- un second
+# tableau portant `06 06 05 06 06 06 06 06`.
+#
+# ⚠⚠ CE N'EST PAS UNE COINCIDENCE NUMERIQUE : le 5 est en position DEFENSE, et
+# la capacite qui venait d'etre utilisee etait MIMI-QUEUE, qui baisse la
+# defense adverse. C'est le geste du joueur qui a ecrit cet octet.
+STAGES_EQUIPE  = 0x02023BFC   # le combattant du joueur
+STAGES_ADVERSE = 0x02023C54   # celui d'en face
+PAS_COMBATTANT = 88
+#
+#   +0 (inutilise) · +1 attaque · +2 defense · +3 vitesse
+#   +4 atq.spe · +5 def.spe · +6 precision · +7 esquive
+#   valeur 6 = neutre ; 0..12 ; (valeur - 6) = le nombre de crans
+STAGE_NEUTRE = 6
+#
+# ⚠ CES ADRESSES N'ONT DE SENS QU'EN COMBAT. Hors combat elles portent des
+# restes -- meme piege que la fiche adverse, et meme garde : la boite affichee
+# a l'ecran est la seule preuve qu'un combat a lieu.
+#
+# ⚠ RESERVE : une prediction de confirmation supplementaire -- reutiliser
+# MIMI-QUEUE et voir l'octet passer de 5 a 4 -- n'a PAS ete executee. Ce qui
+# precede tient sur la structure, l'unicite de la suite, et le mecanisme ; pas
+# sur une seconde variation observee.
+
 # ------------------------------------------------- ce qui reste a trouver
 #
 # ⚠ LE DRAPEAU « EN COMBAT » N'EST PAS TROUVE, et l'astuce evidente ECHOUE :
