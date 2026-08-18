@@ -336,7 +336,38 @@ Une ligne par requete, une ligne par reponse.
 | `read8｜read16｜read32 <addr>` | `ok <valeur decimale>` |
 | `dump <addr> <len>` | `ok <hexa majuscule>` -- `len` <= 1024 |
 | `blocks <addr> <len> [taille]` | `ok <une somme par bloc>` -- `len` <= 262144 |
+| `keys` | `ok humain=<n> moi=<n> dernier=<masque> frame=<n>` |
 | (erreur) | `err <message>` |
+
+### ⚠⚠ `keys` -- la sonde voit les appuis de l'humain
+
+Un changement d'ecran est un **effet** ; un appui est la **cause**. Surveiller la
+cause dit **quand regarder**, a la frame pres -- ce qu'aucune comparaison de
+texte ne peut donner. Mesure : les messages de resultat du jeu durent ~2 s, donc
+un scrutin toutes les 3 s en rate la moitie, seuil parfait ou non.
+
+⚠ **Comment c'est possible** : `emu:setKeys` ecrit dans le meme etat que le
+clavier. Verifie dans la source de mGBA -- l'interface Qt appelle
+`core->setKeys(core, activeKeys)` avec les touches actives
+(`src/platform/qt/CoreController.cpp`), et `emu:getKeys()` relit ce meme
+`gba->keysActive`.
+
+⚠⚠⚠ **`humain` et `moi` sont comptes SEPAREMENT.** La sonde voit ses propres
+pressions -- celles qu'un client envoie via `press` -- exactement comme celles
+d'un humain. Sans cette separation, un navigateur automatique se declencherait
+**sur lui-meme, en boucle**.
+
+⚠ **Semantique de VIDANGE** : chaque appui n'est rendu qu'une fois ; lire
+consomme. Un compteur cumulatif obligerait l'appelant a garder l'etat precedent
+pour calculer une difference -- et c'est exactement l'endroit ou l'on oublie de
+le faire.
+
+⚠ **Front montant seulement** : une touche MAINTENUE compte une fois, pas
+soixante fois par seconde.
+
+⚠ **Ce que ce canal ne dit PAS** : tout ne vient pas d'un appui. L'adversaire
+agit, un niveau monte, une animation se joue. Il repond a « quand regarder »,
+jamais a « tout ce qui arrive ».
 
 `KEY` : `A B SELECT START RIGHT LEFT UP DOWN R L`
 Les adresses acceptent `0x02024082` comme `33702018`.
@@ -359,10 +390,26 @@ mouvement, et l'avant/apres ne voudrait plus rien dire.
   pause reussie · capture en pause expiree · capture suivante refusee.
   Pour un moment tranquille, prendre le menu d'attaques d'un combat : le jeu
   tourne, mais rien ne s'anime.
-- ⚠⚠ **La sonde ne survit pas a un client qui abandonne** -- defaut connu, non
-  corrige. Apres un delai depasse cote client, le port cesse d'accepter des
-  connexions et seul un redemarrage de mGBA la remet en service. Elle devrait
-  se remettre a ecouter ; elle ne le fait pas.
+- ✅ **La sonde survit desormais a un client qui abandonne** (correctif du
+  2026-08-16). Le defaut etait mesure -- elle tombait entre 20 et 25 abandons --
+  et venait de deux fuites sur le chemin d'ERREUR : la case du client etait mise
+  a nil **sans que le socket soit ferme**, et `#clients + 1` sur une table a
+  trous pouvait ecraser une entree vivante. Verifie apres correctif : **60
+  abandons, toujours vivante**, puis confirme en production sur une panne non
+  planifiee.
+- ⚠⚠⚠ **UNE COMMANDE QUI PLANTE SE LIT COMME UNE SONDE MORTE.** Une erreur Lua
+  dans un gestionnaire tue le rappel : aucune reponse ne part, et le client voit
+  **un delai depasse** -- exactement ce qu'il verrait devant une sonde morte.
+  Mesure du 2026-08-18 : une variable declaree APRES la fonction qui la lit
+  (donc `nil`, donc `string.format` qui leve) a produit ce symptome.
+  ➜ **Le diagnostic est gratuit, il suffit de le connaitre :**
+
+  ```
+  delai depasse, PUIS `ping` repond  ->  c'est la COMMANDE qui a plante
+  delai depasse, PUIS `ping` muet    ->  c'est la SONDE qui est morte
+  ```
+
+  Un seul `ping` separe les deux, et elles ne se reparent pas au meme endroit.
 - **Charger un script pendant qu'un autre tient le port ne remplace rien** (voir
   `version` plus haut).
 - **Un dialogue ouvert avale les pas.** Ils ne changent rien. Le fermer par `A`

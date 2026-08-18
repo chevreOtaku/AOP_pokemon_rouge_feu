@@ -11,6 +11,7 @@
 --   read8|16|32 <addr>   -> ok <valeur decimale>
 --   dump <addr> <len>    -> ok <hexa majuscule, len octets>
 --   blocks <a> <l> <b>   -> ok <somme par bloc de b octets>
+--   keys                 -> ok humain=<n> moi=<n> dernier=<masque> frame=<n>
 --   err <message>        en cas d'echec
 --
 -- KEY : A B SELECT START RIGHT LEFT UP DOWN R L
@@ -36,7 +37,7 @@ local PORT = 9601
 -- (le README propose de COLLER le contenu, et un « rechargement » ne relit
 -- alors aucun fichier). Sans numero de version, « commande inconnue » est
 -- indiscernable d'une faute de frappe. Avec, la question se tranche en un tour.
-local VERSION = "2026-08-16 survit-au-client-parti"
+local VERSION = "2026-08-18 voit-les-appuis-b"
 
 -- Pointeur du SaveBlock1 de Pokemon Rouge Feu (FR).
 -- Trouve par scan+correlation le 2026-07-08, pas par documentation.
@@ -64,6 +65,17 @@ local SETTLE_FRAMES        = 10
 local server = nil
 local clients = {}
 local pending = nil   -- { sock, mask, hold, settle }
+
+-- ⚠⚠⚠ DECLARES ICI, EN HAUT, ET C'EST OBLIGATOIRE. Ils etaient d'abord poses
+-- juste avant `on_frame` -- donc APRES le gestionnaire de protocole qui les
+-- lit. En Lua, un `local` declare plus bas est INVISIBLE a une fonction definie
+-- plus haut : la commande voyait des globales `nil`, `string.format("%d", nil)`
+-- levait, l'erreur tuait le rappel, et AUCUNE reponse ne partait.
+-- Symptome cote client : un delai depasse -- indiscernable d'une sonde morte.
+local touches_avant = 0
+local appuis_humains = 0
+local appuis_a_nous = 0
+local dernier_appui = nil   -- { masque, frame }
 
 -- ⚠⚠⚠ COMPTEUR MONOTONE, JAMAIS `#clients + 1`.
 -- En Lua, `#` sur une table A TROUS est INDEFINI : retirer un client cree un
@@ -187,6 +199,20 @@ local function handle(sock, line)
 
     if verb == "version" then
         sock:send("ok " .. VERSION .. "\n")
+        return
+    end
+
+    -- ⚠ SEMANTIQUE DE VIDANGE : chaque appui n'est rendu QU'UNE fois. Un
+    -- compteur cumulatif obligerait l'appelant a garder l'etat precedent pour
+    -- calculer une difference -- et c'est exactement l'endroit ou l'on oublie
+    -- de le faire. Ici, lire consomme.
+    if verb == "keys" then
+        local h, n = appuis_humains, appuis_a_nous
+        local frame = dernier_appui and dernier_appui.frame or -1
+        local masque = dernier_appui and dernier_appui.masque or 0
+        appuis_humains, appuis_a_nous, dernier_appui = 0, 0, nil
+        sock:send(string.format("ok humain=%d moi=%d dernier=%d frame=%d\n",
+                                h, n, masque, frame))
         return
     end
 
@@ -318,7 +344,45 @@ end
 
 -- ---------------------------------------------------------------- frames
 
+-- ---------------------------------------------- surveillance des appuis
+--
+-- ⚠⚠ POURQUOI. Un changement d'ecran est un EFFET ; un appui est la CAUSE.
+-- Surveiller la cause dit QUAND regarder, a la frame pres -- ce qu'aucune
+-- comparaison de texte ne peut donner. Mesure du 2026-08-17 : les messages de
+-- resultat du jeu durent ~2 s, donc un scrutin toutes les 3 s en rate la
+-- moitie, seuil parfait ou non.
+--
+-- ⚠ CE QUE CA NE DIT PAS : tout ne vient pas d'un appui. L'adversaire agit,
+-- un niveau monte, une animation se joue. Ce canal repond a « quand regarder »,
+-- jamais a « tout ce qui arrive ».
+--
+-- ⚠⚠⚠ ET IL VOIT NOS PROPRES PRESSIONS. `emu:setKeys` ecrit dans le meme etat
+-- que le clavier de l'humain -- verifie dans la source de mGBA
+-- (`CoreController.cpp` appelle `core->setKeys` avec les touches actives).
+-- Sans distinction, un navigateur automatique se declencherait sur lui-meme en
+-- boucle. Les pressions emises pendant qu'une commande `press` est en vol sont
+-- donc comptees a part.
+local function surveiller_touches()
+    local ok, courant = pcall(function() return emu:getKeys() end)
+    if not ok or type(courant) ~= "number" then return end
+
+    -- Les bits passes de 0 a 1 depuis la frame precedente : un APPUI, pas un
+    -- maintien. Sans ce front montant, une touche tenue compterait a chaque
+    -- frame -- soixante « appuis » par seconde.
+    local montants = courant & ~touches_avant
+    touches_avant = courant
+    if montants == 0 then return end
+
+    if pending then
+        appuis_a_nous = appuis_a_nous + 1
+    else
+        appuis_humains = appuis_humains + 1
+    end
+    dernier_appui = { masque = montants, frame = emu:currentFrame() }
+end
+
 local function on_frame()
+    surveiller_touches()
     if not pending then return end
 
     if pending.hold > 0 then
