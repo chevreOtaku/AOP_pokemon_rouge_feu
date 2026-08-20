@@ -47,9 +47,19 @@ PV_EQUIPE  = 0x020242DA   # le Pokemon actif du joueur
 PV_ADVERSE = 0x02024082   # celui d'en face
 #
 # L'ecart est de 600 octets = 6 x 100 : le pas d'une equipe de six.
-# ⚠ HYPOTHESE NON VERIFIEE : le membre N serait a +100*N. Personne ne l'a
-# teste -- il faudra un combat avec plusieurs Pokemon vivants pour le dire.
+# ✅ VERIFIE le 2026-08-19. Cette ligne a porte « HYPOTHESE NON VERIFIEE :
+# personne ne l'a teste » pendant six jours. Les six emplacements ont ete lus
+# d'affilee : deux occupes, quatre vides, especes et attaques coherentes avec
+# l'ecran. Voir `equipe.py`.
 PAS_EQUIPE = 100
+
+# ⚠⚠ LA FICHE COMPLETE COMMENCE 86 OCTETS AVANT LES PV. `struct Pokemon` fait
+# 100 octets et place `hp` a l'offset 86 -- ce qui relie l'adresse ci-dessus au
+# DEBUT de la fiche, et donne acces a l'espece, aux quatre attaques, a leurs PP
+# et au PID. Les 48 octets qui les portent sont CHIFFRES ; la cle
+# (`personality XOR otId`) est lisible en clair aux offsets 0 et 4.
+# ➜ Tout le detail, la methode et ses pieges : `equipe.py`.
+DEBUT_FICHE = -86
 
 NIVEAU = -2
 PV_MAX = +2

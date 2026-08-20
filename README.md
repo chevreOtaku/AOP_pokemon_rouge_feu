@@ -190,6 +190,85 @@ differentiels et oublie. L'accuse de session du moteur porte un `characterId` :
 **il n'est pas lu** -- un pont sans etat rend une mesure reproductible, un pont
 qui se souvient rend une mesure qui depend de son passe.
 
+## Lire l'EQUIPE -- `equipe.py`
+
+```
+python equipe.py              # JSON
+python equipe.py --lisible    # pour un humain
+```
+
+```
+2 occupe(s), 2 en vie
+  0  espece 7    N.9    15/27   pid 0xBBD4B988  33(32) 39(29) 145(28)
+  1  espece 1    N.7    24/24   pid 0x1B1708A5  33(35) 45(40) 73(10)
+  2  (vide)
+```
+
+Espece, niveau, PV, **les quatre attaques avec leurs PP**, les cinq statistiques
+et le **PID** -- pour les six emplacements. Aucun OCR.
+
+⚠⚠ **LE PID EST L'IDENTITE, ET RIEN D'AUTRE NE L'EST.** Un `u32` unique par
+Pokemon. `pv_max` et le niveau se repetent d'un Pokemon a l'autre : un appelant
+qui s'en sert pour reconnaitre « le meme combattant » se trompera un jour sans
+le savoir. L'integration Pokemon officielle a fait ce chemin avant nous (son
+issue #23).
+
+⚠ **Les identifiants ne sont pas des noms.** `33` ne dit pas « Charge ». La
+table espece/attaque est de la **donnee de jeu** et n'est pas ici -- ce module
+rend ce qu'il LIT, il ne traduit pas.
+
+### Le chiffrement, et il se franchit sans secret
+
+Les 48 octets qui portent l'espece, les attaques et les PP sont chiffres :
+
+```
+cle = personality XOR otId       (deux u32, lisibles en clair aux offsets 0 et 4)
+```
+
+Chaque `u32` du bloc est XORe par cette cle, puis les quatre sous-blocs de 12
+octets sont **melanges** selon `personality % 24`.
+
+⚠ **La signature qui met sur la voie** : dans un dump brut, un motif se repete
+tous les QUATRE octets. C'est la marque d'un XOR par une cle `u32`, pas du bruit.
+⚠⚠ **Se tromper d'ordre de melange rend des nombres PLAUSIBLES et faux** -- donc
+pire qu'une erreur bruyante.
+
+### ⚠⚠⚠ Trois absences a ne pas confondre
+
+```
+personality == 0       l'emplacement est VIDE
+dump rend None         la sonde a REFUSE -- c'est une panne
+identifiant d'attaque 0  l'emplacement d'attaque est vide, pas une attaque « 0 »
+```
+
+Les trois produisent la meme absence de donnees et appellent trois gestes
+differents. Une equipe **amputee** par un refus de sonde, presentee comme
+complete, se lit exactement comme une equipe de deux.
+
+⚠ Et « occupe » n'est pas « en vie » : un Pokemon K.O. reste dans l'equipe. Les
+compter ensemble ferait disparaitre un membre au moment ou il tombe.
+
+### ⚠⚠ L'ERREUR DE LECTURE QUI A COUTE UNE FAUSSE CONCLUSION
+
+Le premier dechiffrement n'a porte que sur **l'emplacement 0** -- le Pokemon
+ACTIF. Une conclusion en a ete tiree sur le **starter**. L'emplacement 1 portait
+une autre espece, presente depuis le debut.
+
+> **Le Pokemon actif n'est pas le starter.** Lire un emplacement et conclure sur
+> l'equipe, c'est fabriquer une troncature puis la lire comme un fait.
+
+➜ Six emplacements coutent six dumps. Moins cher qu'une retractation.
+
+### ⚠ Ce que ce module ne fait PAS
+
+Il ne dit pas si on est **en combat**. La fiche adverse survit a la fin d'un
+combat, donc aucune lecture memoire ne distingue « en combat » de « le combat
+vient de finir ». C'est le seul etat qui demande encore de regarder l'ecran.
+
+Il ne rend pas non plus ce que le jeu **ECRIT**. Cette prose n'est nulle part en
+memoire -- l'oeil cesse d'etre un verificateur d'etat, il reste le canal du
+recit.
+
 ## Lire l'etat d'un combat -- `etat.py`
 
 Une lecture, une reponse JSON, et on oublie. C'est l'**ETAT**, la premiere des
