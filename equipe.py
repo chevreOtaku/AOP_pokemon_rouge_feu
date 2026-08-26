@@ -71,6 +71,48 @@ ORDRES = ("GAEM GAME GEAM GEMA GMAE GMEA AGEM AGME AEGM AEMG AMGE AMEG "
           "EGAM EGMA EAGM EAMG EMGA EMAG MGAE MGEA MAGE MAEG MEGA MEAG").split()
 
 
+# ⚠⚠⚠ LA TABLE DE CARACTERES DU JEU, ET ELLE EST VERIFIEE, PAS SUPPOSEE.
+# Gen 3 n'ecrit pas en ASCII. Le surnom vit EN CLAIR dans l'en-tete (offset 8,
+# 10 octets) -- il n'est pas dans le bloc chiffre.
+#
+# Contre-epreuve du 2026-08-21, sur une partie en cours :
+#     c2 d9 e6 d6 d9              -> « Herbe »    <- le nom affiche a l'ecran
+#     be dd db e2 dd e8 d9        -> « Dignite »
+# Deux surnoms, dont un lu independamment sur l'ecran de combat. Les plages
+# alphabetiques sont donc etablies par la donnee, pas par une documentation.
+#
+# ⚠ CE QUI N'EST PAS VERIFIE ICI : les accents (region basse) et la ponctuation
+# rare. Ils sont laisses HORS de la table -- un octet inconnu rend « ? » et se
+# compte, plutot que de deviner une lettre. Un surnom mal devine se lirait
+# comme un vrai nom, et rien ne le signalerait.
+TERMINATEUR = 0xFF
+
+_TABLE = {0x00: " ", 0xAB: "!", 0xAC: "?", 0xAD: ".", 0xAE: "-",
+          0xB8: ",", 0xBA: "/"}
+_TABLE.update({0xA1 + n: chr(ord("0") + n) for n in range(10)})
+_TABLE.update({0xBB + n: chr(ord("A") + n) for n in range(26)})
+_TABLE.update({0xD5 + n: chr(ord("a") + n) for n in range(26)})
+
+
+def lire_surnom(octets: bytes) -> Dict[str, Any]:
+    """10 octets -> le surnom et ce qu'on n'a pas su lire. PURE.
+
+    ⚠ Rend AUSSI `inconnus` : un « ? » silencieux dans un nom se lit comme une
+    faute d'OCR alors que c'est un trou de table. Les deux ne se reparent pas
+    au meme endroit.
+    """
+    lettres, inconnus = [], []
+    for octet in octets:
+        if octet == TERMINATEUR:
+            break
+        if octet in _TABLE:
+            lettres.append(_TABLE[octet])
+        else:
+            lettres.append("?")
+            inconnus.append(octet)
+    return {"surnom": "".join(lettres), "octets_inconnus": inconnus}
+
+
 def dechiffrer(fiche: bytes) -> Optional[Dict[str, bytes]]:
     """Rend les quatre sous-blocs en clair, ou None si la fiche est vide.
 
@@ -116,6 +158,10 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
     attaques = struct.unpack_from("<4H", attaques_bloc, 0)
     pp = tuple(attaques_bloc[8:12])
 
+    # ⚠ Le surnom est dans l'EN-TETE EN CLAIR (offset 8), pas dans le bloc
+    # chiffre. Le dechiffrer avec les autres rendrait dix octets de bruit.
+    nom = lire_surnom(fiche[8:18])
+
     niveau = fiche[84]
     pv, pv_max = struct.unpack_from("<HH", fiche, 86)
     stats = struct.unpack_from("<5H", fiche, 90)
@@ -129,6 +175,12 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
         # a fait ce chemin avant nous (son issue #23).
         "pid": struct.unpack_from("<I", fiche, 0)[0],
         "espece": espece,
+        # ⚠⚠ LE SURNOM EST CE QUE LE JOUEUR VOIT, l'espece un numero. Rendre
+        # « espece 1 » a un consommateur l'obligerait a une table d'especes --
+        # 386 entrees a maintenir -- pour retrouver un nom que le jeu porte
+        # DEJA, et qui en plus tient compte des surnoms donnes par le joueur.
+        "surnom": nom["surnom"],
+        "surnom_octets_inconnus": nom["octets_inconnus"],
         "niveau": niveau,
         "pv": pv, "pv_max": pv_max,
         # ⚠ Un identifiant d'attaque a 0 = EMPLACEMENT VIDE, pas une attaque
