@@ -2,6 +2,7 @@
 
     python equipe.py              # JSON sur la sortie standard
     python equipe.py --lisible    # pour un humain
+    python equipe.py --adverse    # l'equipe d'en face (⚠ survit au combat)
 
 ⚠⚠⚠ POURQUOI CE MODULE EXISTE, ET CE QU'IL REMPLACE. Jusqu'au 2026-08-19, les
 attaques du Pokemon actif etaient lues **par OCR** sur l'ecran de selection. Un
@@ -47,7 +48,7 @@ import struct
 import sys
 from typing import Any, Dict, List, Optional
 
-from adresses import PAS_EQUIPE, PV_EQUIPE
+from adresses import PAS_EQUIPE, PV_ADVERSE, PV_EQUIPE
 from probe import DEFAULT_HOST, DEFAULT_PORT, Probe
 
 # ⚠ `hp` est a l'offset 86 de `struct Pokemon`. C'est ce qui relie l'adresse
@@ -193,14 +194,35 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
     }
 
 
-def lire_equipe(sonde: Probe) -> Dict[str, Any]:
+def lire_equipe(sonde: Probe, adverse: bool = False) -> Dict[str, Any]:
     """Les six emplacements. Rend toujours un dictionnaire, jamais une liste nue.
 
     ⚠ Le pas `+100` a ete VERIFIE le 2026-08-19 : le fichier d'adresses le
     portait comme « HYPOTHESE NON VERIFIEE » depuis le 13/08. Deux emplacements
     occupes lus d'affilee, especes et attaques coherentes avec l'ecran.
     """
-    base = PV_EQUIPE - DECALAGE_PV
+    # ⚠⚠⚠ LES DEUX EQUIPES SONT CONTIGUES, ET C'EST DE L'ARITHMETIQUE, PAS UNE
+    # SUPPOSITION. Les deux adresses etaient connues separement depuis le
+    # 2026-08-13 ; leur ECART n'avait jamais ete calcule :
+    #
+    #     (PV_EQUIPE - 86) - (PV_ADVERSE - 86) = 600 = 6 x 100
+    #
+    # Six emplacements de 100 octets. L'equipe adverse tient donc au meme
+    # format, juste avant celle du joueur.
+    #
+    # ⚠⚠ CE QUI RESTE A MESURER, et ce document ne le cache pas : personne n'a
+    # encore LU ces six emplacements pendant un vrai combat de dresseur. Le
+    # releve du 19/08 porte « equipe ADVERSE : non tentee ».
+    #
+    # ⚠ DEUX PIEGES CONNUS D'AVANCE :
+    #   - la fiche adverse SURVIT a la fin d'un combat (mesure du 13/08) : une
+    #     lecture hors combat rend une equipe PERIMEE qui se lit comme vivante ;
+    #   - contre un Pokemon SAUVAGE, un seul emplacement est rempli. Deux
+    #     emplacements ou plus PROUVENT donc un dresseur -- des le premier tour,
+    #     la ou `combat.py` doit attendre un remplacement. ⚠ Mais un dresseur a
+    #     UN seul Pokemon reste indiscernable d'un sauvage : l'inference garde
+    #     le meme sens unique.
+    base = (PV_ADVERSE if adverse else PV_EQUIPE) - DECALAGE_PV
     equipe: List[Dict[str, Any]] = []
     for n in range(6):
         brut = sonde.dump(base + PAS_EQUIPE * n, TAILLE_FICHE)
@@ -229,6 +251,9 @@ def _principal():
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--lisible", action="store_true")
+    ap.add_argument("--adverse", action="store_true",
+                    help="lire l'equipe D'EN FACE au lieu de la sienne "
+                         "-- ⚠ elle SURVIT a la fin d'un combat")
     args = ap.parse_args()
 
     # ⚠ `Probe.__init__` OUVRE la connexion -- il n'y a pas de `connect()`.
@@ -237,7 +262,7 @@ def _principal():
     sonde = None
     try:
         sonde = Probe(DEFAULT_HOST, DEFAULT_PORT)
-        lu = lire_equipe(sonde)
+        lu = lire_equipe(sonde, adverse=args.adverse)
     except Exception as erreur:            # noqa: BLE001
         # ⚠ L'echec sort en JSON lui aussi : un appelant qui parse la sortie n'a
         # pas a distinguer « du JSON » d'« un message d'erreur ». Deux formes
