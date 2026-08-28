@@ -13,6 +13,12 @@ Une brique : elle sait lire l'etat du jeu et appuyer sur les boutons.
 
 ---
 
+> ⚠ **L'historique des DECISIONS** prises pour ce jeu -- pourquoi l'etat vient de la
+> memoire, pourquoi presser ne passe pas par la sonde, pourquoi on identifie un objet par
+> sa description -- vit dans les notes de terrain :
+> `AOP_gaming/game/pokemon_rouge_feu/decisions-2026-08-26.md`.
+> **Ce README dit comment on s'en sert ; ce journal dit pourquoi c'est fait ainsi.**
+
 ## Ce que c'est
 
 Un pont entre **Pokemon Version Rouge Feu (FR)** tournant dans **mGBA** et un
