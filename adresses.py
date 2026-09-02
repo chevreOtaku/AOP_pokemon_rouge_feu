@@ -56,6 +56,38 @@ POCHES = (
 CLE_CHIFFREMENT = 0x0F20   # dans le SaveBlock2
 ARGENT          = 0x0290   # dans le SaveBlock1
 #
+# ------------------------------------------------- le sac, quand il est OUVERT
+#
+# Transferees de la carte USA le 2026-09-01, puis VERIFIEES ici par correlation.
+# Critere ecrit AVANT la mesure, et tenu deux fois :
+#   la poche : 0 sur OBJETS, 1 sur OBJ. RARES, 2 sur POKe BALLS
+#   la ligne : 0 sur POTION, 1 sur SUPER BONBON, 2 sur SORTIR
+#
+# ⚠⚠ CES ADRESSES N'ONT DE SENS QUE LE SAC OUVERT. C'est un etat de MENU, pas
+# un etat de partie. Lu sac ferme, il rend une valeur qui RESSEMBLE a une
+# lecture sans en etre une -- premiere tentative du 2026-09-01, sac ferme : 0,
+# ininterpretable et non pas faux. Meme piege que la fiche adverse qui survit
+# a la fin d'un combat.
+SAC_POCHE      = 0x0203AD02   # u8 -- indexe POCHES ci-dessus. VERIFIE 2026-09-01
+SAC_LIGNE      = 0x0203AD04   # u8 -- la ligne surlignee. VERIFIE 2026-09-01
+SAC_DEFILEMENT = 0x0203AD0A   # u8 -- objets au-dessus. ⚠ NON VERIFIE
+#
+# ⚠⚠⚠ LA SELECTION VRAIE = SAC_LIGNE + SAC_DEFILEMENT.
+#
+# Et le second n'a PAS pu etre verifie le 2026-09-01 : il ne bouge que si une
+# poche depasse la fenetre visible, et la plus remplie en contenait DEUX. Une
+# adresse fausse et une adresse juste rendent donc le meme zero aujourd'hui --
+# le controle est impossible, pas negatif.
+# ➜ Le defaut ne mordra que le jour ou une poche debordera, et il mordra en
+# SILENCE : c'est exactement ce qui a coute a l'integration de reference un
+# ANNULER selectionne a la place d'un objet, ligne lue 5, objet non consomme.
+# ➜ A RETESTER des qu'une poche depasse six objets. Tant que ce n'est pas fait,
+# additionner les deux quand meme -- l'addition est juste dans les deux cas.
+#
+# ⚠ LA DERNIERE LIGNE EST « SORTIR », PAS UN OBJET. Sur une poche de n objets,
+# les indices valides pour un objet sont 0..n-1 ; n vaut SORTIR. Une selection
+# calculee sans cette borne choisit d'annuler en croyant choisir un objet.
+
 # ⚠ VERIFIE CONTRE L'ECRAN le 2026-09-01, trois poches :
 #   POTION x1 (id 13) · SUPER BONBON x99 (id 68) · POKe BALL x107 (id 4)
 # Les trois quantites tombent juste. C'est la seule verite terrain qui vaille
