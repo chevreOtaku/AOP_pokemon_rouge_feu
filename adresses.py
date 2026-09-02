@@ -70,7 +70,7 @@ ARGENT          = 0x0290   # dans le SaveBlock1
 # a la fin d'un combat.
 SAC_POCHE       = 0x0203AD02   # u16 -- indexe POCHES ci-dessus. VERIFIE 2026-09-01
 SAC_LIGNE       = 0x0203AD04   # u16[3] -- UNE PAR POCHE. VERIFIE 2026-09-01
-SAC_DEFILEMENT  = 0x0203AD0A   # u16[3] -- ⚠ NON VERIFIE
+SAC_DEFILEMENT  = 0x0203AD0A   # u16[3] -- VERIFIE 2026-09-01
 SAC_PAS_TABLEAU = 2            # MESURE le 2026-09-01
 
 
@@ -80,8 +80,39 @@ def sac_ligne(poche: int) -> int:
 
 
 def sac_defilement(poche: int) -> int:
-    """⚠ Le pas est MESURE sur les curseurs, INFERE par symetrie ici."""
+    """Les objets AU-DESSUS de la fenetre visible, pour cette poche.
+
+    ⚠ Le pas est MESURE sur les curseurs, INFERE par symetrie ici.
+    """
     return SAC_DEFILEMENT + SAC_PAS_TABLEAU * poche
+
+
+def sac_selection(ligne: int, defilement: int) -> int:
+    """L'emplacement REELLEMENT surligne. VERIFIE le 2026-09-01.
+
+    ⚠⚠⚠ LIRE LE CURSEUR SEUL DESIGNE LE MAUVAIS OBJET. Mesure sur une poche
+    de six objets, en descendant du haut jusqu'a SORTIR :
+
+        curseur  defilement  somme   ligne
+           0         0         0     POTION
+           1         0         1     SUPER BONBON
+           2         0         2     ANTIDOTE
+           3         0         3     ANTI-PARA
+           3         1         4     RAPPEL        <- POTION quitte l'ecran
+           4         1         5     ELIXIR
+           5         1         6     SORTIR
+
+    Le curseur `3` apparait DEUX fois -- sur ANTI-PARA puis sur RAPPEL. La somme,
+    elle, marche 0..6 sans trou. C'est exactement le defaut qui a coute a
+    l'integration de reference un ANNULER selectionne a la place d'un objet.
+
+    ⚠ Le defilement SATURE (ici a 1 = 7 entrees - 6 lignes visibles), et le
+    curseur REPREND ensuite sa montee. Un modele << le curseur se fige en bas >>
+    est faux.
+
+    ⚠ La borne : sur une poche de n objets, la somme vaut n sur SORTIR.
+    """
+    return ligne + defilement
 
 # ⚠⚠⚠ LE SAC SE SOUVIENT DE LA LIGNE, PAS SEULEMENT DE LA POCHE -- et il peut
 # rouvrir SUR « SORTIR ». Mesure de chevre, 2026-09-01 : « si la derniere
