@@ -1,5 +1,30 @@
 """Trouver l'index du curseur sur l'ecran d'equipe -- en memoire, pas a l'oeil.
 
+⚠⚠⚠ NE PAS LANCER CE SCRIPT. Ecrit le 2026-08-21, jamais lance, et le
+2026-09-02 on a appris pourquoi il ne faut pas :
+
+    LE CURSEUR VIVANT DE L'ECRAN D'EQUIPE EST SUR LE TAS.
+
+Une integration de reference a fait cette chasse, trouve une adresse, et
+constate ensuite que c'etait un OCTET FANTOME -- une copie qui correle le temps
+d'une session puis se deplace. Leur note, verbatim : *« the wedge was a
+WRONG-ADDRESS derivation (the old PARTY_CURSOR was a shadow byte) ; live cursor
+is a heap struct »*.
+
+⚠⚠ CE SCRIPT AURAIT DONC REUSSI, ET EU TORT. C'est le pire resultat possible :
+trois captures, un croisement propre, une adresse qui passe tous les controles
+du jour -- et qui ment la semaine suivante. Un faux positif qui a l'air d'une
+mesure ne se distingue pas d'une mesure.
+
+⚠ CE QUI MARCHE, ET CE N'EST NI LA RAM NI L'OCR : le contour orange se lit AU
+PIXEL. `(255,115,49)` en phase vive, `~(123,90,57)` en phase de fondu, sur le
+bord superieur de chaque case. Voir la decision D-K.
+
+➜ Le script est garde pour sa METHODE -- trois captures, deux contraintes
+croisees, et un second jeu de candidats sans contrainte de valeur. Elle reste
+bonne pour une adresse qui EXISTE. Elle ne peut rien contre une qui n'existe pas.
+
+
     (ouvrir l'ecran d'equipe, curseur sur le PREMIER Pokemon)
     python chasse_curseur.py
     python chasse_curseur.py --direction RIGHT     # si DOWN ne bouge pas
