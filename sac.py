@@ -41,6 +41,7 @@ import sys
 from adresses import (ARGENT, CLE_CHIFFREMENT, POCHES, PTR_SAVEBLOCK1,
                       PTR_SAVEBLOCK2, SAC_POCHE, sac_defilement, sac_ligne,
                       sac_selection)
+from objets_connus import nom as nom_objet
 from probe import DEFAULT_HOST, DEFAULT_PORT, EWRAM, Probe
 
 TAILLE_ENTREE = 4
@@ -178,8 +179,12 @@ def _principal() -> int:
             continue
         print(f"{nom} :")
         for objet in contenu:
+            # ⚠ Le NOM n'entre pas dans la structure rendue en JSON : il vient
+            # d'une table humaine, pas de la memoire. Le confondre avec une
+            # donnee lue ferait passer une convention pour une mesure.
             print(f"   emplacement {objet['emplacement']:<3} "
-                  f"id {objet['identifiant']:<5} x{objet['quantite']}")
+                  f"id {objet['identifiant']:<5} x{objet['quantite']:<4} "
+                  f"{nom_objet(objet['identifiant'])}")
     return 0
 
 
