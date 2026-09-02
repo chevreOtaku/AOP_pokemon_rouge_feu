@@ -22,6 +22,45 @@ PTR_SAVEBLOCK1 = 0x03004F58
 #   +0 x (u16) · +2 y (u16) · +4 mapGroup (u8, 255 = transition de porte)
 #   +5 mapNum (u8)
 
+# Pointeur du SaveBlock2, colle au premier. PREDIT le 2026-09-01 par adjacence
+# (elle tient sur la carte USA), puis CONFIRME : il pointe dans l'EWRAM, et la
+# cle qu'il porte dechiffre l'argent a une valeur lue a l'ecran.
+PTR_SAVEBLOCK2 = 0x03004F5C
+
+# ------------------------------------------------------------------- le sac
+#
+# Trouve le 2026-09-01, et pas par une chasse : la carte memoire de la
+# cartouche USA a ete TRANSFEREE, puis verifiee ici. Ce qui a autorise le
+# transfert est une comparaison sur des adresses deja connues des deux cotes --
+# EWRAM identique sur 3 cas sur 3, IWRAM differente sur 1 sur 1.
+#
+# ⚠ CE SONT DES DECALAGES DANS UNE STRUCTURE, pas des adresses. Ils traversent
+# la localisation par construction : la disposition d'une sauvegarde ne depend
+# pas de la langue des textes.
+#
+# Une entree fait QUATRE octets : {u16 identifiant, u16 quantite XOR cle16}.
+# Un identifiant nul = emplacement vide -- et sa quantite brute vaut alors la
+# cle elle-meme (0 XOR cle = cle). C'est ce detail qui a confirme le
+# chiffrement : une quantite brute egale a la cle au bit pres ne s'invente pas.
+POCHES = (
+    ("objets",     0x0310, 42),
+    ("objets_rares", 0x03B8, 30),
+    ("pokeballs",  0x0430, 13),
+    ("ct_cs",      0x0464, 58),
+    ("baies",      0x054C, 43),
+)
+#
+# La cle chiffre AUSSI l'argent, et c'est par l'argent qu'elle se controle :
+# une cle fausse rend un entier arbitraire, une cle juste rend le nombre que le
+# jeu affiche. Verification du 2026-09-01 : 2000.
+CLE_CHIFFREMENT = 0x0F20   # dans le SaveBlock2
+ARGENT          = 0x0290   # dans le SaveBlock1
+#
+# ⚠ VERIFIE CONTRE L'ECRAN le 2026-09-01, trois poches :
+#   POTION x1 (id 13) · SUPER BONBON x99 (id 68) · POKe BALL x107 (id 4)
+# Les trois quantites tombent juste. C'est la seule verite terrain qui vaille
+# ici -- les quantites du sac n'ont pas d'autre temoin que l'affichage.
+
 # ------------------------------------------------------- fiches de combat
 #
 # Trouvees le 2026-08-13. METHODE : capturer la memoire a plusieurs instants,
