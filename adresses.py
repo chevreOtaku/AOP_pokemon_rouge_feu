@@ -111,6 +111,13 @@ def sac_selection(ligne: int, defilement: int) -> int:
     est faux.
 
     ⚠ La borne : sur une poche de n objets, la somme vaut n sur SORTIR.
+
+    ⚠⚠ ET UNE SECONDE SOURCE, GRATUITE : le bandeau de description affiche
+    « FERMER LE SAC » quand le curseur est sur SORTIR. Deux sources
+    independantes pour le seul cas ou un `A` est destructeur -- la RAM dit
+    `somme == n`, l'ecran dit la phrase. Ne pas confondre avec le mot `sortir`
+    de la LISTE, qui est affiche en permanence : celui-la sert a reconnaitre
+    l'ecran, celui-ci a reconnaitre la POSITION.
     """
     return ligne + defilement
 
