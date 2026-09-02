@@ -33,6 +33,7 @@ un nom qui ne correspond pas a l'ecran, ce qui se voit tout de suite.
 # ⚠ NOMS FRANCAIS, releves a l'ecran par l'humain, jamais traduits ni devines.
 # Chaque entree porte la date ou elle a ete lue.
 NOMS = {
+    1: "MASTER BALL",     # 2026-09-02
     4: "POKe BALL",       # 2026-09-01
     13: "POTION",         # 2026-09-01
     14: "ANTIDOTE",       # 2026-09-02
@@ -43,10 +44,11 @@ NOMS = {
     366: "TV ABC",        # 2026-09-01
 }
 
-# ⚠ VU EN MEMOIRE, JAMAIS A L'ECRAN. L'identifiant 1 occupe un emplacement de la
-# poche Pokeballs (x99) et personne n'a regarde cet ecran. On ne le nomme pas :
-# une supposition inscrite ici deviendrait un fait au prochain relecteur.
-NON_NOMMES = (1,)
+# ⚠ L'identifiant 1 est reste ANONYME une journee : il occupait un emplacement de
+# la poche Pokeballs et personne n'avait regarde cet ecran. Il a ete nomme le
+# 2026-09-02, en le regardant -- MASTER BALL, « La meilleure BALL. Capture le
+# POKeMON a coup sur. » Il n'a PAS ete devine, alors que « 1 » etait devinable.
+NON_NOMMES = ()
 
 
 def nom(identifiant: int) -> str:
