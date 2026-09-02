@@ -39,7 +39,8 @@ import json
 import sys
 
 from adresses import (ARGENT, CLE_CHIFFREMENT, POCHES, PTR_SAVEBLOCK1,
-                      PTR_SAVEBLOCK2)
+                      PTR_SAVEBLOCK2, SAC_POCHE, sac_defilement, sac_ligne,
+                      sac_selection)
 from probe import DEFAULT_HOST, DEFAULT_PORT, EWRAM, Probe
 
 TAILLE_ENTREE = 4
@@ -102,11 +103,31 @@ def lire_sac(sonde):
                             "quantite": _u16(octets, position + 2) ^ cle16})
         poches[nom] = contenu
 
+    # ⚠⚠ L'ETAT DU MENU N'A DE SENS QUE LE SAC OUVERT -- c'est un etat de MENU,
+    # pas un etat de partie. Lu sac ferme il rend une valeur qui RESSEMBLE a une
+    # lecture. On le rend quand meme, mais sous une cle qui le dit : c'est a
+    # l'appelant, qui sait s'il vient d'ouvrir le sac, de decider.
+    # ➜ Cote agent, l'ecran donne la seconde source : la liste porte « SORTIR ».
+    menu = None
+    poche = sonde.read(SAC_POCHE, 16)
+    if poche is not None and 0 <= poche < len(POCHES):
+        ligne = sonde.read(sac_ligne(poche), 16)
+        defilement = sonde.read(sac_defilement(poche), 16)
+        if ligne is not None and defilement is not None:
+            menu = {"poche": poche,
+                    "nom_poche": POCHES[poche][0],
+                    "ligne": ligne,
+                    "defilement": defilement,
+                    # ⚠ Le curseur SEUL ment : mesure, `ligne = 3` sur deux
+                    # objets differents. La somme est la seule position vraie.
+                    "selection": sac_selection(ligne, defilement)}
+
     argent_brut = sonde.read(sb1 + ARGENT, 32)
     return {"lu": True,
             "saveblock1": sb1,
             "saveblock2": sb2,
             "poches": poches,
+            "menu_si_ouvert": menu,
             # ⚠ L'argent n'est pas un ornement : c'est le SEUL nombre du sac
             # qui ait un temoin verifiable a l'ecran. Si la cle derive un jour,
             # c'est lui qui le dira -- les quantites, elles, n'ont rien contre
@@ -142,6 +163,12 @@ def _principal() -> int:
     argent = sac["argent"]
     print(f"argent : {argent if argent is not None else 'illisible'}"
           f"   <- se compare a l'ecran, c'est le controle de la cle")
+    menu = sac["menu_si_ouvert"]
+    if menu:
+        print(f"menu   : poche {menu['poche']} ({menu['nom_poche']})   "
+              f"ligne {menu['ligne']} + defilement {menu['defilement']} = "
+              f"SELECTION {menu['selection']}"
+              f"   <- ⚠ n'a de sens que le sac OUVERT")
     print()
     for nom, contenu in sac["poches"].items():
         if args.poche and nom != args.poche:
