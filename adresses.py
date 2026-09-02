@@ -68,9 +68,37 @@ ARGENT          = 0x0290   # dans le SaveBlock1
 # lecture sans en etre une -- premiere tentative du 2026-09-01, sac ferme : 0,
 # ininterpretable et non pas faux. Meme piege que la fiche adverse qui survit
 # a la fin d'un combat.
-SAC_POCHE      = 0x0203AD02   # u8 -- indexe POCHES ci-dessus. VERIFIE 2026-09-01
-SAC_LIGNE      = 0x0203AD04   # u8 -- la ligne surlignee. VERIFIE 2026-09-01
-SAC_DEFILEMENT = 0x0203AD0A   # u8 -- objets au-dessus. ⚠ NON VERIFIE
+SAC_POCHE       = 0x0203AD02   # u16 -- indexe POCHES ci-dessus. VERIFIE 2026-09-01
+SAC_LIGNE       = 0x0203AD04   # u16[3] -- UNE PAR POCHE. VERIFIE 2026-09-01
+SAC_DEFILEMENT  = 0x0203AD0A   # u16[3] -- ⚠ NON VERIFIE
+SAC_PAS_TABLEAU = 2            # MESURE le 2026-09-01
+
+
+def sac_ligne(poche: int) -> int:
+    """L'adresse du curseur de CETTE poche. Il y en a un par poche."""
+    return SAC_LIGNE + SAC_PAS_TABLEAU * poche
+
+
+def sac_defilement(poche: int) -> int:
+    """⚠ Le pas est MESURE sur les curseurs, INFERE par symetrie ici."""
+    return SAC_DEFILEMENT + SAC_PAS_TABLEAU * poche
+
+# ⚠⚠⚠ LE SAC SE SOUVIENT DE LA LIGNE, PAS SEULEMENT DE LA POCHE -- et il peut
+# rouvrir SUR « SORTIR ». Mesure de chevre, 2026-09-01 : « si la derniere
+# position est SORTIR, il est directement a la position SORTIR ».
+# ➜ Un « A » aveugle a la reouverture FERME LE SAC. Le geste rapporte « j'ai
+# presse A », et rien ne s'est passe. C'est le meme symptome silencieux que le
+# defilement non lu -- deux causes, une seule apparence.
+# ➜ Le curseur se LIT avant de presser, et la cible se borne a 0..n-1.
+#
+# ⚠⚠ QUASI-RATE A GARDER EN MEMOIRE. Le test qui a valide `SAC_LIGNE` avait
+# navigue dans la poche OBJETS -- l'indice 0. L'adresse etait donc juste PAR LA
+# POCHE, pas par conception. Le meme test dans POKe BALLS n'aurait rien vu
+# bouger a 0x0203AD04, et aurait condamne une adresse correcte.
+# ➜ Un tableau teste sur son PREMIER element ne se distingue pas d'un scalaire.
+#
+# Structure confirmee par contiguite : 0x0203AD04 + 3*2 = 0x0203AD0A, sans trou.
+#   AD02 poche · AD04/AD06/AD08 curseurs · AD0A/AD0C/AD0E defilements
 #
 # ⚠⚠⚠ LA SELECTION VRAIE = SAC_LIGNE + SAC_DEFILEMENT.
 #
