@@ -298,3 +298,52 @@ STAGE_NEUTRE = 6
 # consommateur le compare a celui lu a l'ecran. Une divergence signale une fiche
 # perimee -- c'est le drapeau « en combat » qu'aucune chasse memoire n'a trouve,
 # obtenu par redondance au lieu d'une adresse.
+
+# ------------------------------------------------------------- le Pokedex
+#
+# Transferes le 2026-09-05 depuis `struct SaveBlock2` / `struct Pokedex` du
+# desassemblage `pret/pokefirered`, comme la carte du sac. ⚠ Et ici le
+# transfert n'est PAS une hypothese a valider : DEUX decalages de cette MEME
+# structure sont deja verifies sur la cartouche francaise --
+#
+#     encryptionKey  /*0xF20*/   -> CLE_CHIFFREMENT ci-dessus
+#     money          /*0x290*/   -> ARGENT (lu 2000 contre l'ecran, 2026-09-01)
+#
+# Une structure dont deux champs eloignes tombent juste ne se decale pas au
+# milieu. Ca ne dispense pas du controle, ca dit seulement ou parier.
+#
+# ✅ VERIFIE LE 2026-09-05, EN PARTIE REELLE, PAR TEMOIN EXTERIEUR.
+# La lecture rend `captures = 4` et `vus = 7` ; l'ecran du Pokedex du jeu
+# affiche « Vus: 7 · Pris: 4 ». Les deux nombres, au premier tir.
+#
+# ⚠ CE QUI REND CE CONTROLE FORT, et il vaut d'etre nomme : un COMPTE ne depend
+# d'aucune interpretation. Un drapeau isole rend 0 ou 1, et les deux sont
+# plausibles depuis n'importe quelle adresse ; deux comptes exacts, non. C'est
+# la meme methode que l'argent pour le sac -- chercher le seul nombre qui ait un
+# temoin a l'ecran, et faire porter toute la carte par lui.
+#
+# ⚠⚠ Et un second controle, INTERNE et gratuit : on ne peut pas avoir capture
+# une espece sans l'avoir vue. `captures` etait inclus dans `vus`, zero exception
+# sur 52 octets. Une adresse fausse casse cette regle presque tout de suite.
+# Les deux controles sont independants et tombent du meme cote.
+#
+# ⚠ Corroboration non demandee : les trois starters (1, 4, 7) sont VUS -- ce qui
+# arrive dans le laboratoire -- et seuls deux sont PRIS. Le troisieme est celui
+# du rival. Aucune adresse fausse ne produit cette forme.
+POKEDEX          = 0x0018   # `struct Pokedex pokedex` dans le SaveBlock2
+POKEDEX_CAPTURES = 0x0010   # `owned[]`, dans la structure Pokedex
+POKEDEX_VUS      = 0x0044   # `seen[]`, meme taille
+POKEDEX_OCTETS   = 52       # DEX_FLAGS_NO -- 52 x 8 = 416 bits
+#
+# ⚠⚠ L'INDEX EST `numero - 1`, PAS `numero`. Le jeu calcule
+# `index = numero_national - 1`, puis `octet = index / 8` et `bit = index & 7`.
+# Se tromper d'un decale TOUT le Pokedex d'une espece, et le resultat reste
+# parfaitement plausible : chaque bit lu vaut toujours 0 ou 1.
+#
+# ⚠⚠⚠ ET LE NUMERO DU POKEDEX N'EST PAS L'IDENTIFIANT D'ESPECE. Les deux
+# coincident pour les 151 premiers (ceux de cette cartouche), puis DIVERGENT :
+# les especes de la troisieme generation sont rangees dans un autre ordre en
+# memoire. Une conversion sera necessaire le jour ou on lira autre chose que du
+# Kanto -- et son absence ne se verra pas avant, ce qui est le pire moment pour
+# la decouvrir.
+POKEDEX_PREMIER_DIVERGENT = 252
