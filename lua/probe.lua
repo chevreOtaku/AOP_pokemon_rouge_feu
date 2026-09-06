@@ -56,7 +56,12 @@ local KEYS = {
     R = 8, L = 9,
 }
 
--- Un pas fait ~16 frames sur GBA. On maintient la touche, PUIS on laisse
+-- ⚠ DEFAUT DE MARCHE, et seulement d'elle. Un pas fait ~16 frames sur
+-- GBA. Dans un MENU, une direction maintenue 16 images fait DEUX pas de
+-- curseur (mesure du 2026-09-06 ; le seuil est vers 13 images, instable
+-- dessus). Un client qui navigue dans un menu DOIT passer sa propre duree
+-- -- cote Python, `PRESS_FRAMES_MENU`.
+-- On maintient la touche, PUIS on laisse
 -- le monde se stabiliser avant de lire : sinon on lit au milieu du pas et
 -- l'avant/apres ne veut rien dire.
 local PRESS_FRAMES_DEFAULT = 16

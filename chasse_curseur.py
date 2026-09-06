@@ -63,7 +63,7 @@ import argparse
 import sys
 
 from chasse import capturer, charger, parcourir
-from probe import DEFAULT_HOST, DEFAULT_PORT, Probe
+from probe import DEFAULT_HOST, DEFAULT_PORT, PRESS_FRAMES_MENU, Probe
 
 OPPOSEES = {"DOWN": "UP", "UP": "DOWN", "RIGHT": "LEFT", "LEFT": "RIGHT"}
 
@@ -72,7 +72,12 @@ def _presser(sonde, touche: str) -> None:
     """⚠ Une pression qui echoue ARRETE la chasse. Continuer produirait trois
     captures dont on ne sait plus a quel etat elles correspondent -- et une
     capture mal etiquetee est pire qu'une capture manquante."""
-    apres = sonde.press(touche)
+    # ⚠ CONTEXTE MENU : le defaut de la sonde vaut pour la MARCHE (16
+    # images) et fait DEUX pas de curseur dans un menu. Une chasse qui
+    # avance de deux crans par pression compare des captures dont les
+    # etiquettes sont fausses -- et une capture mal etiquetee est pire
+    # qu'une capture manquante, ce que ce module dit deja plus haut.
+    apres = sonde.press(touche, PRESS_FRAMES_MENU)
     if apres is None:
         raise SystemExit(f"pression {touche} refusee : {sonde.last_reply}")
 

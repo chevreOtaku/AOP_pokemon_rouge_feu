@@ -29,7 +29,10 @@ def _principal():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("touche", help=f"une de : {' '.join(TOUCHES)}")
     ap.add_argument("--frames", type=int, default=None,
-                    help="duree de la pression (defaut : celui de la sonde)")
+                    help="duree de la pression. Defaut : celui de la sonde, "
+                         "soit 16 images -- la valeur de la MARCHE. "
+                         "⚠ Dans un MENU, 16 fait DEUX pas de curseur : "
+                         "utiliser --frames 8 (voir PRESS_FRAMES_MENU).")
     ap.add_argument("--hote", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     args = ap.parse_args()

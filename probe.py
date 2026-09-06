@@ -27,9 +27,41 @@ import socket
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 9601
 
+# ⚠ CETTE VALEUR EST CELLE DE LA MARCHE, ET SEULEMENT D'ELLE.
 # Un pas fait ~16 frames sur GBA. Mesure par execution le 2026-08-10 :
-# six appuis, six pas, aucun double.
+# six appuis, six pas, aucun double. Le test etait le BON -- un test de
+# doublement -- et il portait sur le DEPLACEMENT.
 PRESS_FRAMES = 16
+
+# ⚠⚠ DANS UN MENU, 16 FAIT DEUX PAS DE CURSEUR. Mesure du 2026-09-06 sur
+# l'ecran d'equipe : presser BAS, relire la position surlignee.
+#
+#     images   duree a 59,9 fps   pas mesures
+#        16         267 ms        2 2 2
+#        14         234 ms        2 2 2
+#        13         217 ms        1 1 2   <- la frontiere, INSTABLE dessus
+#        12         200 ms        1 1 1
+#         8         134 ms        1 1 1 1 1 1 1 1
+#
+# Le jeu REPETE une direction maintenue. Ce n'est pas la repetition clavier du
+# systeme : elle vaut ~500 ms sur le poste d'essai, le DOUBLE du seuil observe.
+#
+# ⚠ IMAGES OU MILLISECONDES : NON TRANCHE. Le tableau vient d'un seul regime
+# (59,9 fps), ou les deux grandeurs sont proportionnelles -- donc indiscernables
+# par cette mesure. 8 est retenu parce qu'il est sur SOUS LES DEUX hypotheses :
+# loin du seuil en images (8 < 13) et court en temps (134 ms).
+#
+# ⚠ Mesure faite en maintenant la touche cote SYSTEME, pas via `press` de
+# cette sonde -- qui compte, elle, en images emulees. Le seuil appartient au
+# JEU et ne devrait pas dependre du chemin, mais la confirmation par la sonde
+# RESTE A FAIRE.
+#
+# ⚠⚠ LA LECON VAUT MIEUX QUE LE NOMBRE :
+#     *une mesure valide un nombre DANS SON CONTEXTE ; le nombre voyage, la
+#      mesure non.*
+# Le 16 ci-dessus est juste et mesure. Il est devenu faux en changeant d'usage,
+# sans que personne ne le modifie et sans qu'aucun test n'echoue.
+PRESS_FRAMES_MENU = 8
 
 # mapGroup == 255 : le jeu traverse une porte. Les coordonnees lues pendant
 # cette fenetre ne designent aucune case stable -- les rapporter comme une
