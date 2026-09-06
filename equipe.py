@@ -76,11 +76,25 @@ ORDRES = ("GAEM GAME GEAM GEMA GMAE GMEA AGEM AGME AEGM AEMG AMGE AMEG "
 # Gen 3 n'ecrit pas en ASCII. Le surnom vit EN CLAIR dans l'en-tete (offset 8,
 # 10 octets) -- il n'est pas dans le bloc chiffre.
 #
-# Contre-epreuve du 2026-08-21, sur une partie en cours :
-#     c2 d9 e6 d6 d9              -> « Herbe »    <- le nom affiche a l'ecran
-#     be dd db e2 dd e8 d9        -> « Dignite »
-# Deux surnoms, dont un lu independamment sur l'ecran de combat. Les plages
-# alphabetiques sont donc etablies par la donnee, pas par une documentation.
+# ✅ CONTRE-EPREUVE DU 2026-08-21, SUR UNE PARTIE EN COURS. Deux surnoms ont
+# ete decodes octet par octet, **dont un lu independamment sur l'ecran de
+# combat**. Les plages alphabetiques sont donc etablies par la DONNEE, pas par
+# une documentation.
+#
+# ⚠ Les deux surnoms de cette contre-epreuve ne sont pas reproduits ici : ils
+# viennent d'une partie reelle, et un extrait de partie ne va pas dans un depot
+# public -- meme quand il a l'air anodin. Ils y ont figure du 26/08 au 06/09.
+#
+# Les exemples ci-dessous sont donc CALCULES depuis la table, puis verifies par
+# ALLER-RETOUR a travers `lire_surnom` -- ils sont vrais, et ils n'appartiennent
+# a personne :
+#
+#     ca dd df d5 d7 dc e9              -> « Pikachu »
+#     bc e9 e0 d6 dd ee d5 e6 e6 d9     -> « Bulbizarre »
+#
+# ⚠ Les deux couvrent les DEUX plages (une majuscule a 0xBB+n, des minuscules
+# a 0xD5+n) : un exemple tout en majuscules n'exercerait que la moitie de la
+# table, et son succes ne dirait rien de l'autre moitie.
 #
 # ⚠ CE QUI N'EST PAS VERIFIE ICI : les accents (region basse) et la ponctuation
 # rare. Ils sont laisses HORS de la table -- un octet inconnu rend « ? » et se
@@ -156,6 +170,33 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
 
     croissance, attaques_bloc = blocs["G"], blocs["A"]
     espece = struct.unpack_from("<H", croissance, 0)[0]
+    # ✅ L'EXPERIENCE, offset 4 du bloc de croissance -- VERIFIEE le 2026-09-06
+    # par une contre-epreuve EXTERIEURE au systeme, sur quatre Pokemon :
+    #
+    #   emplacement   niv     xp    intervalle de sa courbe de croissance
+    #        1          11     873   [742, 973[     moyen-lent    OUI
+    #        2          12    1024   [973, 1261[    moyen-lent    OUI
+    #        3          17    3120   [3120, 3798[   moyen-lent    EXACTEMENT le seuil
+    #        4           5     134   [125, 216[     moyen-RAPIDE  OUI
+    #
+    # ⚠⚠ Le quatrieme sort de la premiere courbe et tombe pile dans l'AUTRE :
+    # son espece a une croissance differente. Ce n'est pas un echec, c'est une
+    # SECONDE confirmation.
+    #
+    # ⚠ Les surnoms sont volontairement absents de ce tableau : ils viennent
+    # d'une partie reelle, et un extrait de partie ne va pas dans un depot
+    # public -- meme quand il a l'air anodin.
+    #
+    # ⚠⚠⚠ POURQUOI CETTE PREUVE EST FORTE : trois choses independantes
+    # s'accordent -- un champ CHIFFRE a l'offset 4 d'un bloc dont l'ordre est
+    # PERMUTE par le PID, un niveau lu EN CLAIR a l'offset 84, et une formule
+    # qui vient de l'exterieur du systeme. Quatre octets au hasard rendent
+    # toujours un nombre plausible ; ils ne tombent pas dans l'intervalle juste
+    # de la bonne courbe quatre fois de suite, ni exactement sur un seuil.
+    #
+    # ⚠ Les predictions avaient ete POSEES AVANT la lecture : xp plausible,
+    # xp croissante avec le niveau, ordre des xp = ordre des niveaux.
+    experience = struct.unpack_from("<I", croissance, 4)[0]
     attaques = struct.unpack_from("<4H", attaques_bloc, 0)
     pp = tuple(attaques_bloc[8:12])
 
@@ -183,6 +224,11 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
         "surnom": nom["surnom"],
         "surnom_octets_inconnus": nom["octets_inconnus"],
         "niveau": niveau,
+        # ⚠ L'EXPERIENCE EST UN CUMUL, jamais un delta. Elle ne DESCEND pas.
+        # Sa hausse marque qu'un combat a ete gagne -- mais ⚠ elle est MUETTE
+        # quand on FUIT et quand on PERD : « pas de hausse » ne veut donc pas
+        # dire « pas de combat ».
+        "experience": experience,
         "pv": pv, "pv_max": pv_max,
         # ⚠ Un identifiant d'attaque a 0 = EMPLACEMENT VIDE, pas une attaque
         # nommee « 0 ». On les rend appariees a leurs PP et on retire les vides.
