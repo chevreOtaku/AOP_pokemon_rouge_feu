@@ -145,9 +145,39 @@ def _principal() -> int:
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     args = ap.parse_args()
 
-    sonde = Probe(args.hote, args.port)
+    # ⚠⚠⚠ UN `except`, PAS SEULEMENT UN `finally` -- et ce module l'a appris
+    # apres son frere. `etat.py` porte ce filet depuis le 2026-08-16 ; ici il
+    # manquait encore le 2026-09-06, et une sonde morte crachait un TRACEBACK a
+    # la place du JSON que ce fichier promet.
+    #
+    # ⚠⚠ LE COUT N'EST PAS COSMETIQUE. Les appelants (`objets.py`,
+    # `menu_combat.py`) parsent cette sortie ; un traceback leur fait rendre
+    # « reponse illisible du pont », ce qui envoie regarder le PARSING alors que
+    # la cause est « la sonde ne repond plus, relance mGBA ». Deux diagnostics,
+    # deux gestes opposes, et c'est le mauvais qui s'affichait.
+    try:
+        sonde = Probe(args.hote, args.port)
+    except OSError as e:
+        panne = {"lu": False,
+                 "message": f"sonde injoignable sur {args.hote}:{args.port} -- "
+                            f"{e}. mGBA tourne-t-il, et le script Lua est-il "
+                            f"charge ? Une pause de l'emulateur tue la sonde "
+                            f"sans qu'elle s'en remette."}
+        print(json.dumps(panne, ensure_ascii=False) if args.json
+              else f"sac non lu : {panne['message']}")
+        return 2
+
     try:
         sac = lire_sac(sonde)
+    except (OSError, ConnectionError) as e:
+        # ⚠ La sonde peut mourir EN COURS de lecture, pas seulement a la
+        # connexion : `Probe.ask()` leve. Les deux chemins doivent rendre la
+        # meme forme, sinon l'appelant en oublie un.
+        panne = {"lu": False,
+                 "message": f"{type(e).__name__} pendant la lecture : {e}"}
+        print(json.dumps(panne, ensure_ascii=False) if args.json
+              else f"sac non lu : {panne['message']}")
+        return 2
     finally:
         sonde.close()
 

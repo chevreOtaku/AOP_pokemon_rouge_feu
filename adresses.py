@@ -253,9 +253,30 @@ STAGE_NEUTRE = 6
 # etaient trop faibles parce que deux captures differaient par une dizaine de
 # choses a la fois, pas seulement par « en combat ou non ».
 #
-# Restent aussi : le curseur de menu (un menu a une position, et « bas, bas, A »
-# ne veut pas dire la meme chose selon d'ou l'on part), l'espece du Pokemon,
-# le sac.
+# ⚠⚠⚠ CETTE LISTE A ETE FAUSSE SUR SES TROIS ITEMS. Elle disait « restent
+# aussi : le curseur de menu, l'espece du Pokemon, le sac ». Etat REEL au
+# 2026-09-06, et chaque item l'etait deja quand la liste a ete relue :
+#
+#   le sac          FAIT le 01/09 -- cinq poches, quantites dechiffrees, et
+#                   l'etat de son menu (poche, ligne, defilement)
+#   l'espece        `equipe.py` la dechiffre DEPUIS LE 19/08, des deux cotes.
+#                   ⚠ Une sonde allait etre ecrite pour ca le 05/09 : c'est
+#                   d'avoir OUVERT le fichier, et non cette liste, qui l'a
+#                   evite.
+#   le curseur      trois ecrans, trois reponses : le SAC se lit en memoire ·
+#                   l'EQUIPE se lit au PIXEL (contour orange) · le MENU DE
+#                   COMBAT ne se lit nulle part, mais il n'a plus besoin de
+#                   l'etre -- ses directions BUTENT aux bords (mesure chevre du
+#                   05/09), donc `UP UP LEFT LEFT` le NORMALISE depuis
+#                   n'importe quelle case.
+#
+# ⚠⚠ Ce qui reste vraiment introuvable est plus haut : le DRAPEAU « EN COMBAT ».
+# Il est contourne par redondance -- la boite adverse a l'ecran, plus le niveau
+# croise ecran/RAM -- pas par une adresse.
+#
+# ⚠ POURQUOI CE BLOC EST REECRIT ET NON COMPLETE : une liste de manques laissee
+# derriere se lit comme l'etat present, et elle interdit des gestes devenus
+# possibles. Celle-ci a survecu trois semaines a ce qu'elle decrivait.
 
 # ------------------------------------------------------------- avertissements
 #
