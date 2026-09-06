@@ -368,3 +368,29 @@ POKEDEX_OCTETS   = 52       # DEX_FLAGS_NO -- 52 x 8 = 416 bits
 # Kanto -- et son absence ne se verra pas avant, ce qui est le pire moment pour
 # la decouvrir.
 POKEDEX_PREMIER_DIVERGENT = 252
+
+# ------------------------------------------- le TYPE de combat (CANDIDAT)
+#
+# ⚠⚠⚠ CANDIDAT, PAS ACQUIS. Le bit se lit, sa valeur est coherente, et le test
+# qui trancherait n'a PAS ete fait : il faut un combat de DRESSEUR.
+#
+# Origine : la carte RAM communautaire (Data Crystal) donne
+#   « 0x02022B4C  4b  Flags for current battle? Set to 0x8 by repeattrainerbattle »
+#
+# ⚠ Ce qui rend le pari solide malgre une source non autoritaire, c'est la
+# CONCORDANCE de trois choses independantes :
+#   1. `0x8` = `1 << 3` = BATTLE_TYPE_TRAINER dans le moteur Gen 3
+#   2. la source dit que ce bit est pose par une commande de DRESSEUR
+#   3. lecture du 2026-09-06, en combat SAUVAGE reel : `0x00000004`
+#      -- bit 3 a ZERO, et seul le bit 2 pose (combat solo simple)
+#
+# ⚠⚠ CE QUE CA VAUT AUJOURD'HUI : une lecture qui CONFIRME le cas attendu ne
+# prouve rien seule -- une adresse fausse peut rendre 0 sur ce bit. La preuve
+# demande la VARIATION : le meme bit a 1 en combat de dresseur.
+#
+# ⚠ POURQUOI CA COMPTE : « sauvage ou dresseur » plafonne aujourd'hui a une
+# ressemblance OCR de 0.714 contre un seuil de 0.70, lisible au TOUR 1
+# seulement. Ce bit serait exact et disponible pendant tout le combat -- il
+# leverait le seul verrou restant sur DEUX decisions sur trois (fuite, capture).
+TYPE_DE_COMBAT = 0x02022B4C   # u32 -- ⚠ CANDIDAT, non verifie par variation
+COMBAT_DRESSEUR = 0x0008      # bit 3
