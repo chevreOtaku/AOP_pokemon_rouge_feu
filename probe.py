@@ -104,6 +104,22 @@ class Probe:
     def press(self, key: str, frames: int = PRESS_FRAMES):
         return parse_state(self.ask(f"press {key} {frames}"))
 
+    def frame(self):
+        """Le numero d'image courant, ou None si la sonde est trop ancienne.
+
+        ⚠⚠ NE PAS confondre avec le `frame=` de `keys` : celui-la est l'image
+        du DERNIER APPUI, et le lire VIDE les compteurs d'appuis. Celui-ci est
+        une horloge, il ne consomme rien.
+
+        ⚠ Deux lectures identiques disent que l'emulateur est en PAUSE. C'est
+        la seule preuve de vie disponible : tout le reste se lit sans bouger.
+        """
+        reponse = self.ask("frame")
+        if not reponse.startswith("ok "):
+            return None
+        valeur = reponse[3:].strip()
+        return int(valeur) if valeur.lstrip("-").isdigit() else None
+
     def read(self, addr: int, taille: int = 8):
         """Lit 8, 16 ou 32 bits. Rend None sur refus -- la raison est dans
         `last_reply`, et elle compte : « hors region » et « lecture impossible »

@@ -11,7 +11,10 @@
 --   read8|16|32 <addr>   -> ok <valeur decimale>
 --   dump <addr> <len>    -> ok <hexa majuscule, len octets>
 --   blocks <a> <l> <b>   -> ok <somme par bloc de b octets>
+--   frame                -> ok <numero d'image>   (horloge, ne consomme rien)
 --   keys                 -> ok humain=<n> moi=<n> dernier=<masque> frame=<n>
+--                           ⚠ VIDANGE : lire consomme. `frame=` y est
+--                           l'image du DERNIER APPUI, pas une horloge.
 --   err <message>        en cas d'echec
 --
 -- KEY : A B SELECT START RIGHT LEFT UP DOWN R L
@@ -37,7 +40,7 @@ local PORT = 9601
 -- (le README propose de COLLER le contenu, et un « rechargement » ne relit
 -- alors aucun fichier). Sans numero de version, « commande inconnue » est
 -- indiscernable d'une faute de frappe. Avec, la question se tranche en un tour.
-local VERSION = "2026-08-18 voit-les-appuis-b"
+local VERSION = "2026-09-07 horloge-d-images"
 
 -- Pointeur du SaveBlock1 de Pokemon Rouge Feu (FR).
 -- Trouve par scan+correlation le 2026-07-08, pas par documentation.
@@ -204,6 +207,27 @@ local function handle(sock, line)
 
     if verb == "version" then
         sock:send("ok " .. VERSION .. "\n")
+        return
+    end
+
+    -- ⚠⚠ UNE HORLOGE, ET ELLE NE CONSOMME RIEN. Distincte de `keys`
+    -- expres : celui-la rend l'image du DERNIER APPUI et se VIDE en le
+    -- rendant. Une veille qui l'appelait pour se dater mangeait le compteur
+    -- « un humain a touche la manette » -- un signal qui ne lui appartient
+    -- pas. (Defaut trouve le 2026-09-07, en faisant tourner.)
+    --
+    -- ⚠⚠⚠ POURQUOI DES IMAGES ET PAS DES SECONDES. L'avance rapide change
+    -- la duree d'une image, pas leur nombre : une animation de 300 images
+    -- dure 5 s a 60 images/s et 1,25 s a 240. Un delai mesure en secondes ne
+    -- voyage donc pas d'une vitesse a l'autre -- c'est ce que le seuil de
+    -- repetition a montre (21 images, identiques a 60 et a 240 images/s).
+    --
+    -- Il sert aussi de preuve de VIE : deux lectures qui rendent le meme
+    -- nombre disent que l'emulateur est en PAUSE, et sans lui tout le reste
+    -- se lit sans que rien ne bouge -- chaque controle passerait au vert sur
+    -- un monde fige.
+    if verb == "frame" then
+        sock:send("ok " .. tostring(emu:currentFrame()) .. "\n")
         return
     end
 

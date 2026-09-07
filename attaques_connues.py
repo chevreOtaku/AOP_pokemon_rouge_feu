@@ -42,7 +42,21 @@ mesurees valent mieux que 354 recopiees dont on ignore laquelle est fausse.
 # ⚠ NOMS FRANCAIS, releves A L'ECRAN par l'humain, jamais traduits ni devines.
 # Chaque entree porte la date ou elle a ete lue.
 NOMS = {
-    17: "CRU-AILE",       # 2026-09-06 -- « ROUCOUPS veut apprendre CRU-AILE. »
+    17: "CRU-AILE",       # 2026-09-06 -- « ... veut apprendre CRU-AILE. »
+    # ⚠⚠ LES DEUX SUIVANTES VIENNENT D'UN SEUL EVENEMENT, et c'est neuf. La
+    # sequence de remplacement nomme l'attaque APPRISE **et** celle qui est
+    # OUBLIEE ; la difference d'ENSEMBLES en memoire donne les deux
+    # identifiants du meme instant. Un apprentissage rend donc DEUX paires,
+    # pas une -- releve du 2026-09-07 :
+    #
+    #     « ... apprend POUDRE DODO ! »                        apprises   [79]
+    #     « ... ne sait plus comment utiliser DOUX PARFUM. »   remplacees [230]
+    #
+    # ⚠ Le nom du Pokemon est retire de ces citations A DESSEIN : le surnom
+    # par defaut EST le nom d'espece, donc le citer reviendrait a poser un
+    # extrait de la partie en cours dans un depot public.
+    79: "POUDRE DODO",    # 2026-09-07
+    230: "DOUX PARFUM",   # 2026-09-07
 }
 
 # ⚠ Les identifiants VUS en memoire mais jamais nommes a l'ecran. Ils ne sont

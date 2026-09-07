@@ -61,6 +61,9 @@ TAILLE_FICHE = 100
 # Les 48 octets chiffres commencent apres l'en-tete en clair :
 # personality(4) otId(4) surnom(10) langue(1) drapeaux(1) dresseur(7)
 # marques(1) somme(2) inconnu(2) = 32
+# ⚠ La somme de controle que le jeu ecrit sur les quatre sous-blocs.
+# Verifiee sur une partie reelle le 2026-09-07 : 6 emplacements sur 6.
+DECALAGE_SOMME = 0x1C
 DEBUT_CHIFFRE = 32
 TAILLE_CHIFFRE = 48
 
@@ -150,6 +153,37 @@ def dechiffrer(fiche: bytes) -> Optional[Dict[str, bytes]]:
 
     ordre = ORDRES[personality % 24]
     return {ordre[i]: clair[i * 12:(i + 1) * 12] for i in range(4)}
+
+
+def somme_de_controle_ok(fiche: bytes) -> Optional[bool]:
+    """La fiche est-elle INTACTE. PURE. None si l'emplacement est vide.
+
+    ⚠⚠⚠ POURQUOI CE CONTROLE EXISTE. La sonde lit 100 octets pendant que le
+    jeu tourne ; si elle tombe au milieu d'une ecriture, elle rend une fiche
+    DECHIREE -- a moitie l'ancienne, a moitie la neuve. Le dechiffrement ne
+    proteste pas : il rend des nombres, simplement faux.
+
+    Mesure du 2026-09-07, pendant une montee de niveau : une espece 63318
+    (elles vont jusqu'a ~411) et quatre identifiants d'attaques au-dela de
+    60000 (ils vont jusqu'a 354). Une fausse evolution, une fausse capacite
+    apprise, et une fausse BAISSE d'experience -- laquelle a declenche la
+    regle « impossible en jeu, donc chargement de sauvegarde ».
+
+    ⚠⚠ Aucune borne inventee n'est necessaire : le jeu ECRIT LUI-MEME une
+    somme de controle sur les quatre sous-blocs. La verifier, c'est laisser le
+    jeu dire si sa fiche est coherente -- rien a calibrer, rien qui derive.
+    """
+    blocs = dechiffrer(fiche)
+    if blocs is None:
+        return None
+    stockee = struct.unpack_from("<H", fiche, DECALAGE_SOMME)[0]
+    # ⚠ L'ordre de concatenation n'importe pas : c'est une somme de mots de
+    # 16 bits, et les sous-blocs en font six chacun. Une permutation de
+    # groupes laisse la somme inchangee.
+    clair = b"".join(blocs[cle] for cle in ("G", "A", "E", "M"))
+    calculee = sum(struct.unpack_from("<H", clair, i)[0]
+                   for i in range(0, TAILLE_CHIFFRE, 2)) & 0xFFFF
+    return stockee == calculee
 
 
 def lire_fiche(fiche: bytes) -> Dict[str, Any]:
