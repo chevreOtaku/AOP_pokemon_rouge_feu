@@ -257,3 +257,84 @@ def test_une_rencontre_ne_perturbe_pas_les_autres_evenements():
     apres = _releve(adverse=[0xAAAA0008, 102, 7, 31], argent=644)
     quoi = [e["quoi"] for e in differences(avant, apres)]
     assert "rencontre" in quoi and "argent" in quoi
+
+# ------------------------------------------- les surnoms de l'equipe (09/09)
+
+
+def test_une_evolution_porte_les_DEUX_noms():
+    """⚠⚠ C'est tout l'interet du changement du 2026-09-09. Sans eux, une
+    evolution se lisait « un de tes Pokemon evolue » -- sans dire QUI ni EN
+    QUOI. Un Pokemon au nom par defaut change de nom en evoluant.
+
+    ⚠ Noms FABRIQUES, comme partout ici.
+    """
+    avant = _releve(equipe=[[0xAAAA0001, 101, 18, [201], 5000, "ZZZAVANT"]])
+    apres = _releve(equipe=[[0xAAAA0001, 102, 18, [201], 5000, "ZZZAPRES"]])
+    vu = [e for e in differences(avant, apres) if e["quoi"] == "evolution"][0]
+    assert vu["de_nom"] == "ZZZAVANT"
+    assert vu["a_nom"] == "ZZZAPRES"
+
+
+def test_un_pokemon_SURNOMME_garde_son_nom_en_evoluant():
+    """Les deux champs sont alors EGAUX -- c'est la verite du jeu, pas un
+    defaut : le jeu ne renomme pas un Pokemon que le joueur a nomme."""
+    avant = _releve(equipe=[[0xAAAA0001, 101, 18, [201], 5000, "ZZZCHOISI"]])
+    apres = _releve(equipe=[[0xAAAA0001, 102, 18, [201], 5000, "ZZZCHOISI"]])
+    vu = [e for e in differences(avant, apres) if e["quoi"] == "evolution"][0]
+    assert vu["de_nom"] == vu["a_nom"] == "ZZZCHOISI"
+
+
+def test_niveau_entree_et_capacite_portent_le_nom():
+    avant = _releve(equipe=[[0xAAAA0001, 101, 11, [201], 5000, "ZZZUN"]])
+    apres = _releve(equipe=[[0xAAAA0001, 101, 12, [202], 5100, "ZZZUN"],
+                            [0xAAAA0002, 103, 4, [203], 100, "ZZZDEUX"]])
+    par_quoi = {e["quoi"]: e for e in differences(avant, apres)}
+    assert par_quoi["niveau"]["nom"] == "ZZZUN"
+    assert par_quoi["capacite"]["nom"] == "ZZZUN"
+    assert par_quoi["entree"]["nom"] == "ZZZDEUX"
+
+
+def test_une_SORTIE_est_nommee_depuis_le_releve_d_AVANT():
+    """Celui qui part n'est plus dans le releve d'apres, par definition."""
+    avant = _releve(equipe=[[0xAAAA0003, 101, 9, [201], 900, "ZZZPARTI"],
+                            [0xAAAA0004, 102, 9, [202], 900, "ZZZRESTE"]])
+    apres = _releve(equipe=[[0xAAAA0004, 102, 9, [202], 900, "ZZZRESTE"]])
+    vu = [e for e in differences(avant, apres) if e["quoi"] == "sortie"][0]
+    assert vu["nom"] == "ZZZPARTI"
+
+
+def test_une_equipe_VIDEE_emet_ses_sorties_et_une_equipe_ILLISIBLE_non():
+    """⚠⚠⚠ Defaut PREEXISTANT trouve le 2026-09-09 en ecrivant le cas
+    ci-dessus : `if not avant or not apres` confondait une liste VIDE avec une
+    lecture IMPOSSIBLE, et aucune sortie n'etait emise quand l'equipe se
+    vidait.
+
+    C'est la faute que ce module repare partout -- une absence de lecture
+    prise pour une absence de chose -- retrouvee dans sa propre garde.
+    """
+    plein = _releve(equipe=[[0xAAAA0003, 101, 9, [201], 900, "ZZZPARTI"]])
+
+    vide = differences(plein, _releve(equipe=[]))
+    assert [e["quoi"] for e in vide] == ["sortie"]
+    assert vide[0]["nom"] == "ZZZPARTI"
+
+    # ⚠ `None` = « je n'ai pas su lire » -> rien, jamais.
+    assert differences(plein, _releve(equipe=None)) == []
+    assert differences(_releve(equipe=None), plein) == []
+
+
+def test_un_surnom_illisible_reste_ABSENT_et_non_pas_vide():
+    """Une chaine vide se lirait comme « il n'a pas de nom »."""
+    avant = _releve(equipe=[[0xAAAA0001, 101, 11, [201], 5000, ""]])
+    apres = _releve(equipe=[[0xAAAA0001, 101, 12, [201], 5000, ""]])
+    vu = [e for e in differences(avant, apres) if e["quoi"] == "niveau"][0]
+    assert "nom" not in vu
+
+
+def test_un_releve_SANS_surnom_du_tout_fonctionne_encore():
+    """⚠ Compatibilite : les rangs a cinq elements existaient avant le
+    2026-09-09. Un rang court ne doit pas faire tomber la comparaison."""
+    avant = _releve(equipe=[[0xAAAA0001, 101, 11, [201], 5000]])
+    apres = _releve(equipe=[[0xAAAA0001, 101, 12, [201], 5000]])
+    vu = [e for e in differences(avant, apres) if e["quoi"] == "niveau"][0]
+    assert vu["a"] == 12 and "nom" not in vu

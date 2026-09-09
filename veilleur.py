@@ -48,12 +48,33 @@ d'un objet ; ecrire « combat gagne » ferait dire au journal ce qu'il n'a pas
 mesure. C'est la COINCIDENCE de plusieurs lignes qui tranche, et c'est le
 travail du lecteur.
 
-⚠ Il ne releve AUCUN surnom DE L'EQUIPE. Ils viennent de la sauvegarde, ils
-sont arbitraires -- le joueur les choisit -- et un journal se recopie.
+⚠⚠⚠ LES SURNOMS SONT RELEVES DEPUIS LE 2026-09-09, et la regle d'avant est
+REMPLACEE, pas contournee. Elle disait : « il ne releve AUCUN surnom -- ils
+viennent de la sauvegarde, ils sont arbitraires, et un journal se recopie ».
 
-⚠⚠ AMENDEMENT DU 2026-09-09, ET IL EST ETROIT. Le surnom de l'ADVERSAIRE est
-releve, lui, et seulement lui. La regle ci-dessus visait ce que le JOUEUR a
-nomme ; la fiche d'en face ne porte rien de tel :
+CE QUI L'A FAIT TOMBER, mesure le meme jour : sans eux, une evolution se lit
+« un de tes Pokemon evolue » -- sans dire QUI, ni EN QUOI. Verbatim du
+proprietaire de la partie : *« si un Pokemon a evolue et on ne sait pas en quoi
+ou qui, c'est un probleme »*. L'asymetrie etait pire que le risque : la fiche
+d'en face etait nommee, les siennes non.
+
+⚠ LE RISQUE RESTE REEL ET IL A DEJA COUTE. Le 26/08, deux surnoms d'une partie
+sont partis dans un message de commit public ; la decision du 06/09 a ete de ne
+PAS reecrire l'historique. Ce que la regle protegeait n'a pas disparu -- c'est
+la DISCIPLINE qui doit tenir, et le garde du depot public la tient : il lit les
+surnoms de la partie en cours et refuse un commit qui les porterait.
+
+➜ La regle devient donc : **les surnoms circulent dans le FLUX, jamais dans le
+DEPOT.** Un journal colle dans un message de commit reste une fuite, et le
+garde est ce qui l'arrete.
+
+⚠⚠ POURQUOI CE N'EST PAS UNE TABLE. Le surnom par defaut EST le nom d'espece :
+un adversaire nomme, une evolution nommee, tout cela sort du jeu. Sans lui, un
+consommateur devrait maintenir 386 entrees pour retrouver un nom que la
+cartouche porte deja -- et une table recopiee rendrait des noms ANGLAIS pour
+une cartouche francaise.
+
+Cas de l'adversaire, ou le risque est nul :
 
     un Pokemon sauvage   son surnom EST son nom d'espece, identique dans
                          toutes les copies du jeu
@@ -215,7 +236,8 @@ def _equipe_et_xp(sonde: Probe) -> Dict[str, Any]:
         total += experience
         fiche = E.lire_fiche(octets)
         rangs.append([fiche["pid"], fiche["espece"], fiche["niveau"],
-                      sorted(a["id"] for a in fiche["attaques"]), experience])
+                      sorted(a["id"] for a in fiche["attaques"]), experience,
+                      fiche["surnom"]])
     return {"equipe": rangs, "xp": total, "adverse": _adverse(sonde)}
 
 
@@ -338,16 +360,30 @@ def _differences_equipe(avant, apres) -> List[Dict[str, Any]]:
     ⚠⚠⚠ Une EVOLUTION change l'espece a PID CONSTANT, et le NIVEAU NE BOUGE
     PAS. Un detecteur qui exigerait les deux raterait toutes les evolutions.
     """
-    if not avant or not apres:
+    # ⚠⚠⚠ `None` ET `[]` NE SONT PAS LA MEME CHOSE, et ce test les
+    # confondait. `None` veut dire « je n'ai pas su lire » -- somme de controle
+    # mauvaise, sonde muette -- et il ne doit rien produire. `[]` veut dire
+    # « lu, et l'equipe est vide » : c'est un ETAT, et les depots qui l'ont
+    # videe sont de vrais evenements de sortie.
+    #   Trouve le 2026-09-09 par un test qui vidait l'equipe : aucune sortie
+    # n'etait emise. Meme famille que le defaut que ce module repare partout --
+    # une absence de lecture prise pour une absence de chose.
+    if avant is None or apres is None:
         return []
     connus = {rang[0]: rang for rang in avant}
     evenements = []
     for rang in apres:
         pid, espece, niveau, attaques = rang[0], rang[1], rang[2], rang[3]
         experience = rang[4] if len(rang) > 4 else None
+        # ⚠ Un surnom illisible reste ABSENT, jamais une chaine vide -- elle se
+        # lirait comme « il n'a pas de nom ». Meme regle que pour l'adversaire.
+        nom = rang[5] if len(rang) > 5 and rang[5] else None
         if pid not in connus:
-            evenements.append({"quoi": "entree", "pid": pid, "espece": espece,
-                               "niveau": niveau})
+            entree = {"quoi": "entree", "pid": pid, "espece": espece,
+                      "niveau": niveau}
+            if nom:
+                entree["nom"] = nom
+            evenements.append(entree)
             continue
         ancien = connus[pid]
         espece0, niveau0, attaques0 = ancien[1], ancien[2], ancien[3]
@@ -360,20 +396,41 @@ def _differences_equipe(avant, apres) -> List[Dict[str, Any]]:
                 and experience != experience0):
             evenements.append({"quoi": "xp", "pid": pid, "de": experience0,
                                "a": experience, "delta": experience - experience0})
+        nom0 = ancien[5] if len(ancien) > 5 and ancien[5] else None
         if espece != espece0:
-            evenements.append({"quoi": "evolution", "pid": pid,
-                               "de": espece0, "a": espece, "niveau": niveau})
+            # ⚠⚠ LES DEUX NOMS, et c'est tout l'interet. Un Pokemon au nom par
+            # defaut change de nom en evoluant : `de_nom` et `a_nom` donnent
+            # « X est devenu Y ». Un Pokemon SURNOMME garde son nom -- les deux
+            # champs sont alors egaux, et c'est la verite du jeu, pas un bug.
+            evolution = {"quoi": "evolution", "pid": pid,
+                         "de": espece0, "a": espece, "niveau": niveau}
+            if nom0:
+                evolution["de_nom"] = nom0
+            if nom:
+                evolution["a_nom"] = nom
+            evenements.append(evolution)
         if niveau != niveau0:
-            evenements.append({"quoi": "niveau", "pid": pid,
-                               "de": niveau0, "a": niveau})
+            monte = {"quoi": "niveau", "pid": pid, "de": niveau0, "a": niveau}
+            if nom:
+                monte["nom"] = nom
+            evenements.append(monte)
         if sorted(attaques) != sorted(attaques0):
-            evenements.append({
+            capacite = {
                 "quoi": "capacite", "pid": pid,
                 "apprises": sorted(set(attaques) - set(attaques0)),
-                "remplacees": sorted(set(attaques0) - set(attaques))})
+                "remplacees": sorted(set(attaques0) - set(attaques))}
+            if nom:
+                capacite["nom"] = nom
+            evenements.append(capacite)
     partis = set(connus) - {rang[0] for rang in apres}
     for pid in sorted(partis):
-        evenements.append({"quoi": "sortie", "pid": pid})
+        # ⚠ Le nom vient du releve d'AVANT : celui qui part n'est plus dans le
+        # releve d'apres, par definition.
+        ancien = connus[pid]
+        sortie = {"quoi": "sortie", "pid": pid}
+        if len(ancien) > 5 and ancien[5]:
+            sortie["nom"] = ancien[5]
+        evenements.append(sortie)
     return evenements
 
 
