@@ -267,9 +267,41 @@ def differences(avant: Dict[str, Any], apres: Dict[str, Any]) -> List[Dict[str, 
             evenement["dresseur"] = bool(b & A.COMBAT_DRESSEUR)
         evenements.append(evenement)
 
+    evenements.extend(_rencontre(avant.get("adverse"), apres.get("adverse")))
+
     evenements.extend(_differences_equipe(avant.get("equipe"),
                                           apres.get("equipe")))
     return evenements
+
+
+def _rencontre(avant: Optional[List[int]],
+               apres: Optional[List[int]]) -> List[Dict[str, Any]]:
+    """Un adversaire NEUF s'est presente. Fonction PURE.
+
+    ⚠⚠⚠ ON NE REGARDE PAS SI UNE FICHE EST LA -- ELLE Y EST TOUJOURS. Mesure
+    du 2026-09-09, trois lectures d'affilee : apres un combat gagne, la fiche
+    adverse garde les memes PID avec des PV a zero. Elle ne se vide ni apres
+    un sauvage ni apres un dresseur. Une fiche perimee se lit exactement comme
+    une fiche vivante -- c'est elle qui a produit le faux positif de capture
+    du 06/09.
+
+    ➜ Le seul signal honnete est le PID QUI CHANGE. Deux Rattata d'affilee
+    portent des PID differents : un changement veut dire qu'un autre Pokemon a
+    ete charge, donc qu'une rencontre commence. Meme discipline que l'xp par
+    PID, pour la meme raison.
+
+    ⚠⚠ LA PREMIERE LECTURE N'EMET RIEN. Au demarrage, `avant` est absent et la
+    fiche presente est celle du DERNIER combat -- souvent termine depuis
+    longtemps. Annoncer une rencontre a l'ouverture ferait naitre un combat qui
+    n'a pas lieu. Meme regle que les champs scalaires plus haut : sans un
+    « avant », il n'y a pas de changement.
+    """
+    if not avant or not apres:
+        return []
+    if avant[0] == apres[0]:
+        return []
+    return [{"quoi": "rencontre", "pid": apres[0], "espece": apres[1],
+             "niveau": apres[2]}]
 
 
 def _differences_equipe(avant, apres) -> List[Dict[str, Any]]:

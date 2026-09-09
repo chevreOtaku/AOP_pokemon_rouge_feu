@@ -183,3 +183,54 @@ def test_un_compteur_d_images_qui_AVANCE_n_est_pas_une_rupture():
     tour et on apprend a l'ignorer."""
     vus = differences(_releve(image=100), _releve(image=200))
     assert not [e for e in vus if e["quoi"] == "rupture"]
+
+# --------------------------------------------------------------- la rencontre
+
+
+def test_un_pid_adverse_qui_change_annonce_une_rencontre():
+    """Un adversaire NEUF s'est presente.
+
+    ⚠ Deux Pokemon de la MEME espece portent des PID differents : c'est le
+    PID, et lui seul, qui dit qu'un autre individu a ete charge.
+    """
+    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30])
+    apres = _releve(adverse=[0xAAAA0008, 101, 5, 30])
+    vus = differences(avant, apres)
+    assert {"quoi": "rencontre", "pid": 0xAAAA0008, "espece": 101,
+            "niveau": 5} in vus
+
+
+def test_une_fiche_adverse_PERIMEE_n_annonce_rien():
+    """⚠⚠⚠ LE VERROU. Mesure du 2026-09-09, trois lectures d'affilee : apres
+    un combat, la fiche adverse garde les MEMES identifiants avec des PV a
+    zero. Elle ne se vide ni apres un sauvage ni apres un dresseur.
+
+    Une fiche qui reste identique n'est donc PAS une rencontre -- c'est un
+    souvenir que la memoire du jeu n'a pas efface.
+    """
+    fiche = [0xAAAA0007, 101, 5, 30]
+    assert differences(_releve(adverse=fiche), _releve(adverse=list(fiche))) == []
+
+
+def test_la_PREMIERE_lecture_n_annonce_aucune_rencontre():
+    """⚠⚠ Au demarrage il n'y a pas d'« avant », et la fiche presente est
+    celle du DERNIER combat -- souvent termine depuis longtemps. Annoncer une
+    rencontre a l'ouverture ferait naitre un combat qui n'a pas lieu.
+    """
+    assert differences(_releve(adverse=None),
+                       _releve(adverse=[0xAAAA0007, 101, 5, 30])) == []
+
+
+def test_une_fiche_devenue_illisible_n_annonce_rien_non_plus():
+    """« Je n'ai pas su lire » n'est pas « ca a change » -- la regle du module,
+    appliquee ici aussi."""
+    assert differences(_releve(adverse=[0xAAAA0007, 101, 5, 30]),
+                       _releve(adverse=None)) == []
+
+
+def test_une_rencontre_ne_perturbe_pas_les_autres_evenements():
+    """Elle s'ajoute, elle ne remplace rien."""
+    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30], argent=500)
+    apres = _releve(adverse=[0xAAAA0008, 102, 7, 31], argent=644)
+    quoi = [e["quoi"] for e in differences(avant, apres)]
+    assert "rencontre" in quoi and "argent" in quoi
