@@ -187,17 +187,40 @@ def test_un_compteur_d_images_qui_AVANCE_n_est_pas_une_rupture():
 # --------------------------------------------------------------- la rencontre
 
 
+def test_la_rencontre_porte_le_NOM_lu_dans_le_jeu():
+    """⚠⚠ Le nom vient du JEU, jamais d'une table.
+
+    Le surnom d'un adversaire est son nom d'espece : le jeu le porte deja, et
+    une table recopiee en rendrait la version ANGLAISE pour une cartouche
+    francaise. C'est la doctrine d'`attaques_connues.py`, appliquee ici.
+
+    ⚠ Le nom ci-dessous est FABRIQUE, comme tout le reste du fichier.
+    """
+    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30, "ZZZALPHA"])
+    apres = _releve(adverse=[0xAAAA0008, 102, 7, 31, "ZZZBETA"])
+    vus = differences(avant, apres)
+    assert vus[0]["nom"] == "ZZZBETA"
+
+
+def test_un_nom_ILLISIBLE_est_absent_et_non_pas_vide():
+    """Une chaine vide se lirait comme « il n'a pas de nom ». L'absence de
+    lecture n'est pas une absence de nom -- meme regle que partout ici."""
+    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30, ""])
+    apres = _releve(adverse=[0xAAAA0008, 102, 7, 31, ""])
+    assert "nom" not in differences(avant, apres)[0]
+
+
 def test_un_pid_adverse_qui_change_annonce_une_rencontre():
     """Un adversaire NEUF s'est presente.
 
     ⚠ Deux Pokemon de la MEME espece portent des PID differents : c'est le
     PID, et lui seul, qui dit qu'un autre individu a ete charge.
     """
-    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30])
-    apres = _releve(adverse=[0xAAAA0008, 101, 5, 30])
+    avant = _releve(adverse=[0xAAAA0007, 101, 5, 30, "ZZZALPHA"])
+    apres = _releve(adverse=[0xAAAA0008, 101, 5, 30, "ZZZALPHA"])
     vus = differences(avant, apres)
     assert {"quoi": "rencontre", "pid": 0xAAAA0008, "espece": 101,
-            "niveau": 5} in vus
+            "niveau": 5, "nom": "ZZZALPHA"} in vus
 
 
 def test_une_fiche_adverse_PERIMEE_n_annonce_rien():

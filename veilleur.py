@@ -48,8 +48,26 @@ d'un objet ; ecrire « combat gagne » ferait dire au journal ce qu'il n'a pas
 mesure. C'est la COINCIDENCE de plusieurs lignes qui tranche, et c'est le
 travail du lecteur.
 
-⚠ Il ne releve AUCUN surnom. Ils viennent de la sauvegarde, ils sont
-arbitraires, et un journal se recopie.
+⚠ Il ne releve AUCUN surnom DE L'EQUIPE. Ils viennent de la sauvegarde, ils
+sont arbitraires -- le joueur les choisit -- et un journal se recopie.
+
+⚠⚠ AMENDEMENT DU 2026-09-09, ET IL EST ETROIT. Le surnom de l'ADVERSAIRE est
+releve, lui, et seulement lui. La regle ci-dessus visait ce que le JOUEUR a
+nomme ; la fiche d'en face ne porte rien de tel :
+
+    un Pokemon sauvage   son surnom EST son nom d'espece, identique dans
+                         toutes les copies du jeu
+    celui d'un dresseur  meme chose -- le jeu ne les renomme pas
+
+Ce n'est donc pas un extrait de sauvegarde : c'est une chaine que porte
+n'importe quelle cartouche. Le garde du depot public avait deja tranche ce cas
+exact, en le classant faux positif : « le terme est un nom d'ESPECE, present
+dans toutes les copies du jeu ; il coincide avec un surnom parce que le surnom
+par defaut EST le nom d'espece ».
+
+➜ Et sans lui, un consommateur devrait maintenir une table de 386 especes pour
+retrouver un nom que le jeu porte deja -- ce que `equipe.py` dit explicitement
+de ne pas faire. La regle de l'equipe reste INTACTE.
 """
 
 import argparse
@@ -214,8 +232,10 @@ def _adverse(sonde: Probe) -> Optional[List[int]]:
     fiche = E.lire_fiche(octets)
     if not fiche.get("occupe"):
         return None
+    # ⚠ Le surnom en dernier : ajouter en QUEUE ne deplace aucun indice
+    # existant. Un consommateur qui lit `[0]` continue de lire le PID.
     return [fiche["pid"], fiche["espece"], fiche["niveau"],
-            fiche["stats"]["vitesse"]]
+            fiche["stats"]["vitesse"], fiche["surnom"]]
 
 
 def differences(avant: Dict[str, Any], apres: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -300,8 +320,13 @@ def _rencontre(avant: Optional[List[int]],
         return []
     if avant[0] == apres[0]:
         return []
-    return [{"quoi": "rencontre", "pid": apres[0], "espece": apres[1],
-             "niveau": apres[2]}]
+    rencontre = {"quoi": "rencontre", "pid": apres[0], "espece": apres[1],
+                 "niveau": apres[2]}
+    # ⚠ Le nom n'est ajoute que s'il a ete lu. Un surnom illisible ne doit pas
+    # devenir une chaine vide qui se lirait comme « il n'a pas de nom ».
+    if len(apres) > 4 and apres[4]:
+        rencontre["nom"] = apres[4]
+    return [rencontre]
 
 
 def _differences_equipe(avant, apres) -> List[Dict[str, Any]]:
