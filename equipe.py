@@ -331,6 +331,9 @@ def _principal():
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--lisible", action="store_true")
+    ap.add_argument("--noms-attaques", action="store_true",
+                    help="nommer les attaques du Pokemon AU COMBAT par la "
+                         "cartouche (une requete par attaque)")
     ap.add_argument("--adverse", action="store_true",
                     help="lire l'equipe D'EN FACE au lieu de la sienne "
                          "-- ⚠ elle SURVIT a la fin d'un combat")
@@ -349,6 +352,9 @@ def _principal():
         from combattants import enrichir_equipe, lire_combattant, nommer_especes
         lu = enrichir_equipe(lu, lire_combattant(sonde, adverse=args.adverse))
         lu = nommer_especes(sonde, lu)
+        if args.noms_attaques:
+            from combattants import nommer_attaques_au_combat
+            lu = nommer_attaques_au_combat(sonde, lu)
     except Exception as erreur:            # noqa: BLE001
         # ⚠ L'echec sort en JSON lui aussi : un appelant qui parse la sortie n'a
         # pas a distinguer « du JSON » d'« un message d'erreur ». Deux formes

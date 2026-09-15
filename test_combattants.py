@@ -207,3 +207,71 @@ def test_ADVERSE_une_fiche_implausible_ou_sans_nom_rend_None_pour_le_repli():
     assert adverse_depuis_struct(lire_struct_combattant(_struct(pid=0))) is None
     sans_nom = dict(lire_struct_combattant(_struct()), nom=None)
     assert adverse_depuis_struct(sans_nom) is None
+
+
+# ----------------------------------------------------------------------------
+# Les noms d'attaques du COMBATTANT -- la manette ne depend plus de l'oeil
+# ----------------------------------------------------------------------------
+# ⚠ Mesure qui l'a rendu necessaire : un combattant a DEUX attaques dont l'une
+# porte une apostrophe ; l'oeil n'en lit qu'UNE, le compte ne tombe pas juste,
+# et chaque demande de la premiere est refusee -- en boucle.
+
+class _SondeAttaques:
+    """Rend ALPHA pour l'attaque 1, BRAVO pour la 2, refuse le reste. COMPTE."""
+
+    def __init__(self, leve=False):
+        self.requetes = 0
+        self.leve = leve
+
+    def dump(self, adresse, longueur):
+        from noms_rom import ATTAQUES
+        self.requetes += 1
+        if self.leve:
+            raise OSError("canal coupe")
+        for identifiant, nom in ((1, "ALPHA"), (2, "BRAVO")):
+            if adresse == ATTAQUES.base + identifiant * ATTAQUES.pas:
+                return (_surnom(nom) + bytes(longueur))[:longueur]
+        return None
+
+
+def _membre(emplacement, pid, identifiants, au_combat=False):
+    fiche = _fiche(emplacement, pid)
+    fiche["attaques"] = [{"id": i, "pp": 10} for i in identifiants]
+    if au_combat:
+        fiche["au_combat"] = True
+    return fiche
+
+
+def test_ATTAQUES_seul_le_membre_AU_COMBAT_est_nomme():
+    from combattants import nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [1, 2]),
+                     _membre(1, 0xAAAA0002, [1, 2], au_combat=True)]}
+    sonde = _SondeAttaques()
+    rendu = nommer_attaques_au_combat(sonde, lu)
+    assert [a.get("nom") for a in rendu["equipe"][1]["attaques"]] == ["ALPHA", "BRAVO"]
+    assert all("nom" not in a for a in rendu["equipe"][0]["attaques"])
+    assert sonde.requetes == 2, "une requete par attaque du combattant, pas plus"
+    assert "nom" not in lu["equipe"][1]["attaques"][0], "la lecture d'origine est intacte"
+
+
+def test_ATTAQUES_un_nom_refuse_reste_ABSENT_jamais_devine():
+    from combattants import nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [1, 99], au_combat=True)]}
+    rendu = nommer_attaques_au_combat(_SondeAttaques(), lu)
+    assert [a.get("nom") for a in rendu["equipe"][0]["attaques"]] == ["ALPHA", None]
+
+
+def test_ATTAQUES_sans_membre_au_combat_la_sonde_n_est_pas_derangee():
+    from combattants import nommer_attaques_au_combat
+    sonde = _SondeAttaques()
+    nommer_attaques_au_combat(sonde, {"equipe": [_membre(0, 0xAAAA0001, [1, 2])]})
+    assert sonde.requetes == 0
+
+
+def test_ATTAQUES_un_canal_coupe_ne_REMONTE_pas_et_s_arrete():
+    from combattants import nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [1, 2], au_combat=True)]}
+    sonde = _SondeAttaques(leve=True)
+    rendu = nommer_attaques_au_combat(sonde, lu)
+    assert all("nom" not in a for a in rendu["equipe"][0]["attaques"])
+    assert sonde.requetes == 1, "un canal coupe ne se re-sollicite pas"

@@ -134,6 +134,36 @@ def nommer_especes(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
     return rendu
 
 
+def nommer_attaques_au_combat(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
+    """Ajoute `nom` a chaque attaque du membre `au_combat`. Une requete par attaque.
+
+    ⚠⚠ POURQUOI. La manette resout le mot demande contre les noms LUS A L'ECRAN,
+    et refuse si leur nombre differe du nombre d'attaques en memoire. Un nom
+    a apostrophe n'a jamais ete lu : sur un combattant a deux attaques, chaque
+    demande de la premiere etait refusee, en boucle.
+
+    ⚠ Le SEUL combattant, jamais l'equipe : la sonde meurt sous la charge.
+    Rend une COPIE. Un nom refuse laisse la cle ABSENTE. Un canal coupe arrete
+    les lectures. Ne leve jamais.
+    """
+    from noms_rom import ATTAQUES, lire_nom_par_sonde
+
+    rendu = dict(lu)
+    rendu["equipe"] = [dict(f) for f in (lu.get("equipe") or [])]
+    for fiche in rendu["equipe"]:
+        if not fiche.get("au_combat"):
+            continue
+        fiche["attaques"] = [dict(a) for a in fiche.get("attaques") or []]
+        for attaque in fiche["attaques"]:
+            try:
+                nom = lire_nom_par_sonde(sonde, ATTAQUES, attaque.get("id"))
+            except (OSError, ValueError, TypeError):
+                return rendu
+            if nom.get("nom"):
+                attaque["nom"] = nom["nom"]
+    return rendu
+
+
 def adverse_depuis_struct(fiche: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Fiche de combat adverse -> la forme `adverse_actif`, ou None. PURE.
 
