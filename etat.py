@@ -15,6 +15,10 @@ de PLAUSIBILITE, et l'appelant tranche avec ce qu'il voit par ailleurs.
 ⚠ AUCUN CONTEXTE ACCUMULE, aucune identite, aucun nom interne. Une lecture, une
 reponse, et on oublie. C'est ce qui rend une mesure reproductible.
 
+⚠ `adverse_actif` (2026-09-15) respecte cette regle : QUI est en face se deduit
+d'UNE lecture de l'equipe adverse, et son nom vient de la cartouche -- pas d'un
+souvenir. La regle et ses refus vivent dans `adversaire.py`.
+
 ⚠⚠ UN ZERO SE VERIFIE A UN SECOND INSTANT. Une lecture prise pendant un fondu
 de transition rend des structures vides qui, deux secondes plus tard, sont
 intactes. Ce module ne re-lit pas de lui-meme -- il DECLARE l'implausibilite et
@@ -31,6 +35,8 @@ import sys
 
 from adresses import (NIVEAU, PV_ADVERSE, PV_EQUIPE, PV_MAX, STAGE_NEUTRE,
                       STAGES_ADVERSE, STAGES_EQUIPE)
+from adversaire import lire_adverse_actif
+from combattants import adverse_depuis_struct, lire_combattant
 from probe import DEFAULT_HOST, DEFAULT_PORT, Probe
 
 # Bornes de plausibilite. Elles ne prouvent pas qu'une fiche est VIVANTE --
@@ -98,7 +104,15 @@ def etat(sonde):
     # Ils sont donc lus separement et peuvent manquer alors que les PV sont la.
     joueur["stages"] = lire_stages(sonde, STAGES_EQUIPE)
     adverse["stages"] = lire_stages(sonde, STAGES_ADVERSE)
-    return {"sonde": "ok", "joueur": joueur, "adverse": adverse}
+    # ⚠⚠ `adverse` reste l'EMPLACEMENT 0 -- conserve pour les consommateurs
+    # d'avant. `adverse_actif` dit qui combat VRAIMENT, ou refuse de le dire.
+    # ⚠⚠ QUI COMBAT, des deux cotes : la fiche de combat, par PID. La regle
+    # d'`adversaire.py` ne sert plus que de REPLI -- elle porte une hypothese.
+    adverse_actif = (adverse_depuis_struct(lire_combattant(sonde, adverse=True))
+                     or lire_adverse_actif(sonde))
+    return {"sonde": "ok", "joueur": joueur, "adverse": adverse,
+            "joueur_actif": lire_combattant(sonde),
+            "adverse_actif": adverse_actif}
 
 
 def _principal():
@@ -152,6 +166,21 @@ def _principal():
                   f"{f['pv']}/{f['pv_max']} PV")
         else:
             print(f"  {role:8s} IMPLAUSIBLE -- {f['pourquoi']}")
+    moi = resultat.get("joueur_actif") or {}
+    if moi.get("plausible"):
+        print(f"  au combat {moi['surnom']} ({moi.get('nom') or '?'})   "
+              f"{moi['pv']}/{moi['pv_max']} PV   pid 0x{moi['pid']:08X}")
+    else:
+        print(f"  au combat NON DETERMINE -- {moi.get('pourquoi', '?')}")
+    actif = resultat.get("adverse_actif") or {}
+    if "nom" in actif:
+        # ⚠ `emplacement` n'existe que dans le REPLI : la fiche de combat dit qui
+        # combat sans dire ou il est range. Un affichage qui le supposait a plante.
+        ou = f"emplacement {actif['emplacement']}, " if "emplacement" in actif else ""
+        print(f"  en face  {actif['nom']} ({ou}{actif['raison']})   "
+              f"{actif['pv']}/{actif['pv_max']} PV")
+    else:
+        print(f"  en face  NON DETERMINE -- {actif.get('refus', '?')}")
     return 0
 
 

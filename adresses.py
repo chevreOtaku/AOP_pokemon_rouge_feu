@@ -231,6 +231,29 @@ PAS_COMBATTANT = 88
 #   valeur 6 = neutre ; 0..12 ; (valeur - 6) = le nombre de crans
 STAGE_NEUTRE = 6
 #
+# === LA FICHE DE COMBAT ENTIERE -- et elle dit QUI combat (2026-09-15) ===
+#
+# Les modificateurs ci-dessus sont a +0x18 d'une fiche de combattant de
+# `PAS_COMBATTANT` octets. La fiche commence donc a -0x18, et elle porte bien
+# plus que des crans. Lue en jeu apres un changement de Pokemon, cote joueur :
+#
+#     +0x00 espece u16               +0x28 PV u16
+#     +0x2A niveau u8                +0x2C PV max u16
+#     +0x30 surnom        11 octets, la table d'equipe.py
+#     +0x48 PID u32       = celui d'UN emplacement de l'equipe -- et PAS le 0
+#
+# Les quatre valeurs lues (espece, niveau, PV, surnom) concordaient avec cet
+# emplacement. ⚠ Aucune n'est recopiee ici : ce depot ne porte aucun extrait de partie.
+#
+# Cote adverse, meme lecture : un seul emplacement porte ce PID.
+# ⚠⚠ CE BLOC DEMENT « rien en memoire ne dit qui combat », ecrit ailleurs.
+# Les decalages viennent du desassemblage ; les QUATRE champs ont ete
+# confrontes a l'equipe le meme jour, et ils concordent.
+# ⚠ Meme reserve que les crans : hors combat, la fiche garde le DERNIER
+# combattant. Elle dit qui a combattu, pas qu'un combat a lieu.
+COMBATTANT_JOUEUR  = STAGES_EQUIPE - 0x18    # 0x02023BE4
+COMBATTANT_ADVERSE = STAGES_ADVERSE - 0x18   # 0x02023C3C
+#
 # ⚠ CES ADRESSES N'ONT DE SENS QU'EN COMBAT. Hors combat elles portent des
 # restes -- meme piege que la fiche adverse, et meme garde : la boite affichee
 # a l'ecran est la seule preuve qu'un combat a lieu.

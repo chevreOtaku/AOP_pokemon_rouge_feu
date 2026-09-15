@@ -1,5 +1,12 @@
 """La table identifiant -> nom, construite PAR ACQUISITION.
 
+⚠⚠⚠ AMENDEE LE 2026-09-15 -- LA SOURCE EST DESORMAIS LA CARTOUCHE.
+Les noms se lisent dans les tables de la ROM (`noms_rom.py`). Cette table ne
+disparait pas : elle devient le TEMOIN. Chaque nom releve a l'ecran y entre
+comme avant, et `test_noms_rom.py` le confronte a la cartouche -- il peut la
+refuter. Les deux motifs de la regle ci-dessous sont tombes : les noms viennent
+de la cartouche FRANCAISE, et le jeu affiche ses noms depuis ces tables.
+
 ⚠⚠ AUCUNE LIGNE N'EST RECOPIEE D'UN DESASSEMBLAGE. Une table copiee rendrait
 `ITEM_POTION` -- des noms ANGLAIS pour une cartouche francaise -- et 377 objets
 dont la partie n'en a jamais vu 350. Un nom faux se lit comme un nom vrai.

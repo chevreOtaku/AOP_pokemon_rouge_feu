@@ -343,6 +343,12 @@ def _principal():
     try:
         sonde = Probe(DEFAULT_HOST, DEFAULT_PORT)
         lu = lire_equipe(sonde, adverse=args.adverse)
+        # ⚠⚠ QUI COMBAT et QUELLE ESPECE -- ajoutes a la SORTIE, jamais dans
+        # `lire_equipe`, que d'autres modules consomment tel quel. `actif` garde
+        # son sens d'avant (l'emplacement 0) ; `au_combat` dit le vrai, par PID.
+        from combattants import enrichir_equipe, lire_combattant, nommer_especes
+        lu = enrichir_equipe(lu, lire_combattant(sonde, adverse=args.adverse))
+        lu = nommer_especes(sonde, lu)
     except Exception as erreur:            # noqa: BLE001
         # ⚠ L'echec sort en JSON lui aussi : un appelant qui parse la sortie n'a
         # pas a distinguer « du JSON » d'« un message d'erreur ». Deux formes
@@ -365,8 +371,11 @@ def _principal():
             continue
         att = " ".join(f"{a['id']}({a['pp']})" for a in f["attaques"])
         etat = " K.O." if f["ko"] else ""
-        print(f"  {f['emplacement']}  espece {f['espece']:<4d} N.{f['niveau']:<3d}"
-              f" {f['pv']:>3d}/{f['pv_max']:<4d} pid 0x{f['pid']:08X}  {att}{etat}")
+        combat = "  <- AU COMBAT" if f.get("au_combat") else ""
+        print(f"  {f['emplacement']}  espece {f['espece']:<4d}"
+              f" {f.get('espece_nom') or '?':<11s} N.{f['niveau']:<3d}"
+              f" {f['pv']:>3d}/{f['pv_max']:<4d} pid 0x{f['pid']:08X}  {att}{etat}{combat}")
+    print(f"  (au combat : {lu.get('au_combat_raison', '?')})")
 
 
 if __name__ == "__main__":
