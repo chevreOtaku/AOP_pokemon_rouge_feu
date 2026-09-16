@@ -21,7 +21,7 @@ import struct
 
 from adresses import COMBATTANT_JOUEUR, PAS_COMBATTANT
 from combattants import (TAILLE_COMBATTANT, enrichir_equipe, lire_combattant,
-                         lire_le_plateau, lire_struct_combattant)
+                         lire_etat, lire_le_plateau, lire_struct_combattant)
 
 TERMINATEUR = 0xFF
 
@@ -345,3 +345,60 @@ def test_PLATEAU_une_sonde_qui_leve_ne_propage_pas():
     plateau = lire_le_plateau(_Casse())
     assert [f["plausible"] for f in plateau] == [False] * 4
     assert all("connexion fermee" in f["pourquoi"] for f in plateau)
+
+
+# ------------------------------------------------------------------- l'ETAT
+# ⚠⚠ MESURE DU 2026-09-16 : le mot d'etat vaut 4 pendant le sommeil et 0 au
+# reveil, a 0x4C dans la fiche de COMBAT et a 0x50 dans celle d'EQUIPE -- les
+# deux au meme instant, par deux chemins d'ecriture differents.
+# ⚠ SEUL LE SOMMEIL EST MESURE. Ces tests ne nomment rien d'autre.
+
+def test_ETAT_un_mot_nul_est_un_Pokemon_sans_etat():
+    etat = lire_etat(0)
+    assert etat["lu"] is True
+    assert etat["endormi"] is False
+    assert etat["tours_de_sommeil"] is None
+    assert etat["autre_non_nomme"] is None
+
+
+def test_ETAT_quatre_est_un_COMPTEUR_de_tours_pas_un_drapeau():
+    """La valeur mesuree en jeu : 4 endormi, 0 au reveil."""
+    etat = lire_etat(4)
+    assert etat["endormi"] is True
+    assert etat["tours_de_sommeil"] == 4
+
+
+def test_ETAT_un_seul_tour_restant_compte_encore_comme_endormi():
+    assert lire_etat(1)["endormi"] is True
+
+
+def test_ETAT_un_bit_HORS_du_sommeil_ne_se_nomme_PAS():
+    """⚠⚠⚠ Le desassemblage decrit d'autres etats ; AUCUN n'a ete observe ici.
+    On les rend tels quels plutot que de les baptiser -- une table d'etats ne
+    s'etend pas en silence (meme regle que la table de caracteres, D-BO)."""
+    etat = lire_etat(0x40)
+    assert etat["endormi"] is False
+    assert etat["autre_non_nomme"] == 0x40
+    assert "paralys" not in repr(etat).lower()
+    assert "poison" not in repr(etat).lower()
+
+
+def test_ETAT_sommeil_ET_autre_bit_se_lisent_SEPAREMENT():
+    etat = lire_etat(0x44)
+    assert etat["tours_de_sommeil"] == 4
+    assert etat["autre_non_nomme"] == 0x40
+
+
+def test_ETAT_non_lu_n_est_pas_un_etat_vide():
+    """⚠ « on n'a pas lu » et « il n'a aucun etat » n'autorisent pas les memes
+    phrases."""
+    assert lire_etat(None) == {"lu": False}
+
+
+def test_ETAT_la_fiche_de_combat_le_porte():
+    import struct as _s
+    octets = bytearray(_struct())
+    _s.pack_into("<I", octets, 0x4C, 4)
+    fiche = lire_struct_combattant(bytes(octets))
+    assert fiche["etat"]["endormi"] is True
+    assert fiche["etat"]["tours_de_sommeil"] == 4

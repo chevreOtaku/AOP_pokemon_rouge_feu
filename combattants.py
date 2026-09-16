@@ -26,6 +26,38 @@ TAILLE_COMBATTANT = PAS_COMBATTANT
 ESPECE_MAX = 411            # la derniere entree nommee de la table des especes
 
 
+# ⚠⚠⚠ MESURE DU 2026-09-16, AVEC SON CONTROLE. Le mot d'etat vit a 0x4C dans
+# la fiche de COMBAT et a 0x50 dans la fiche d'EQUIPE -- les deux valaient 4
+# pendant que le combattant dormait et 0 apres son reveil, au meme instant, par
+# deux chemins d'ecriture differents.
+# ⚠⚠ CE N'EST PAS UN DRAPEAU, C'EST UN COMPTEUR : 4 = quatre tours de sommeil
+# restants. Il tombe a 0 au reveil.
+ETAT_COMBAT = 0x4C
+ETAT_EQUIPE = 0x50
+MASQUE_SOMMEIL = 0x07
+
+
+def lire_etat(valeur: Optional[int]) -> Dict[str, Any]:
+    """Un mot d'etat -> ce qu'on en SAIT, et rien de plus. PURE.
+
+    ⚠⚠⚠ SEUL LE SOMMEIL EST MESURE (16/09). Le desassemblage de la serie
+    decrit d'autres bits -- poison, brulure, gel, paralysie -- et **aucun n'a ete
+    observe ici**. On ne les nomme donc pas : tout bit hors du masque de sommeil
+    ressort dans `autre_non_nomme`, tel quel.
+    ➜ Le jour ou l'un d'eux est releve en jeu, il entre ICI avec sa date. Une
+    table d'etats ne s'etend pas en silence -- meme regle que la table de
+    caracteres (D-BO).
+    """
+    if valeur is None:
+        return {"lu": False}
+    sommeil = valeur & MASQUE_SOMMEIL
+    autre = valeur & ~MASQUE_SOMMEIL
+    return {"lu": True, "brut": valeur,
+            "endormi": bool(sommeil),
+            "tours_de_sommeil": sommeil or None,
+            "autre_non_nomme": autre or None}
+
+
 def lire_struct_combattant(octets: Optional[bytes]) -> Dict[str, Any]:
     """88 octets -> `{espece, niveau, pv, pv_max, surnom, pid, plausible, pourquoi}`. PURE."""
     fiche: Dict[str, Any] = {"plausible": False, "pourquoi": ""}
@@ -41,6 +73,7 @@ def lire_struct_combattant(octets: Optional[bytes]) -> Dict[str, Any]:
     fiche["surnom"] = surnom["surnom"]
     fiche["surnom_octets_inconnus"] = surnom["octets_inconnus"]
     fiche["pid"] = struct.unpack_from("<I", octets, 0x48)[0]
+    fiche["etat"] = lire_etat(struct.unpack_from("<I", octets, ETAT_COMBAT)[0])
 
     fiche["pourquoi"] = _pourquoi_implausible(fiche)
     fiche["plausible"] = not fiche["pourquoi"]

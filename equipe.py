@@ -241,6 +241,12 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
     niveau = fiche[84]
     pv, pv_max = struct.unpack_from("<HH", fiche, 86)
     stats = struct.unpack_from("<5H", fiche, 90)
+    # ⚠⚠ L'ETAT EST DANS L'EN-TETE EN CLAIR (0x50), pas dans le bloc chiffre.
+    # Mesure du 2026-09-16 : 4 pendant le sommeil, 0 au reveil -- la MEME valeur
+    # que la fiche de COMBAT au meme instant, par un autre chemin d'ecriture.
+    from combattants import ETAT_EQUIPE, lire_etat
+
+    etat = lire_etat(struct.unpack_from("<I", fiche, ETAT_EQUIPE)[0])
 
     return {
         "occupe": True,
@@ -251,6 +257,9 @@ def lire_fiche(fiche: bytes) -> Dict[str, Any]:
         # a fait ce chemin avant nous (son issue #23).
         "pid": struct.unpack_from("<I", fiche, 0)[0],
         "espece": espece,
+        # ⚠ SEUL LE SOMMEIL EST MESURE -- voir `lire_etat`. Les autres bits
+        # ressortent sans nom.
+        "etat": etat,
         # ⚠⚠ LE SURNOM EST CE QUE LE JOUEUR VOIT, l'espece un numero. Rendre
         # « espece 1 » a un consommateur l'obligerait a une table d'especes --
         # 386 entrees a maintenir -- pour retrouver un nom que le jeu porte
