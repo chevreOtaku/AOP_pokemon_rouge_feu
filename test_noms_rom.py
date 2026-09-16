@@ -339,7 +339,7 @@ def test_DONNEES_le_type_et_le_pp_se_lisent_aux_decalages_mesures():
 def test_DONNEES_les_quatre_types_MESURES_sont_nommes():
     from noms_rom import TYPES_MESURES, donnees_de_fiche
 
-    assert set(TYPES_MESURES) == {0, 8, 10, 11, 14, 16, 17}
+    assert set(TYPES_MESURES) == {0, 2, 8, 10, 11, 14, 16, 17}
     for numero, nom in TYPES_MESURES.items():
         assert donnees_de_fiche(_fiche_attaque(type_=numero))["type_nom"] == nom
 
