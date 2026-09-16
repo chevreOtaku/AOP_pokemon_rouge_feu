@@ -112,6 +112,45 @@ def lire_combattant(sonde, adverse: bool = False) -> Dict[str, Any]:
                 "pourquoi": f"lecture interrompue : {type(panne).__name__} {panne}"}
 
 
+def lire_le_plateau(sonde) -> list:
+    """Les QUATRE fiches de combat -- le plateau d'un combat DOUBLE.
+
+    ⚠⚠⚠ MESURE DU 2026-09-16, AVEC SON CONTROLE. Les fiches se suivent a
+    `PAS_COMBATTANT` : 0 et 2 de notre cote, 1 et 3 en face.
+
+        combat SIMPLE   fiches 0 et 1 pleines, 2 et 3 a PID NUL (jamais remplies)
+        combat DOUBLE   LES QUATRE pleines
+
+    Sans le temoin du simple, « les quatre sont pleines » ne prouverait rien :
+    elles pourraient l'etre toujours.
+
+    ⚠ Ne leve jamais. Une fiche illisible se rend NON plausible avec sa raison :
+    un plateau ampute se lirait sinon comme un plateau complet.
+    """
+    from noms_rom import ESPECES, lire_nom_par_sonde
+
+    plateau = []
+    for indice in range(4):
+        adresse = COMBATTANT_JOUEUR + indice * PAS_COMBATTANT
+        try:
+            octets = sonde.dump(adresse, TAILLE_COMBATTANT)
+            fiche = (lire_struct_combattant(octets) if octets else
+                     {"plausible": False,
+                      "pourquoi": "la sonde a refuse la fiche de combat"})
+        except (OSError, ValueError) as panne:
+            fiche = {"plausible": False,
+                     "pourquoi": f"lecture interrompue : {type(panne).__name__} {panne}"}
+        fiche["indice"] = indice
+        fiche["notre_camp"] = indice % 2 == 0
+        if fiche.get("plausible"):
+            nom = lire_nom_par_sonde(sonde, ESPECES, fiche["espece"])
+            fiche["nom"] = nom.get("nom")
+            if "refus" in nom:
+                fiche["nom_refus"] = nom["refus"]
+        plateau.append(fiche)
+    return plateau
+
+
 def nommer_especes(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
     """Ajoute `espece_nom` a chaque membre occupe. Une requete par membre.
 

@@ -19,8 +19,9 @@ especes 101-103, PID 0xAAAA000x, surnoms ALPHA/BETA fabriques.
 """
 import struct
 
+from adresses import COMBATTANT_JOUEUR, PAS_COMBATTANT
 from combattants import (TAILLE_COMBATTANT, enrichir_equipe, lire_combattant,
-                         lire_struct_combattant)
+                         lire_le_plateau, lire_struct_combattant)
 
 TERMINATEUR = 0xFF
 
@@ -275,3 +276,72 @@ def test_ATTAQUES_un_canal_coupe_ne_REMONTE_pas_et_s_arrete():
     rendu = nommer_attaques_au_combat(sonde, lu)
     assert all("nom" not in a for a in rendu["equipe"][0]["attaques"])
     assert sonde.requetes == 1, "un canal coupe ne se re-sollicite pas"
+
+
+# ----------------------------------------------------------------- le PLATEAU
+# ⚠⚠ MESURE DU 2026-09-16 (chevre a trouve un double dans sa partie). Le
+# controle est le combat SIMPLE lu la meme journee : fiches 2 et 3 a PID NUL.
+# Aucune valeur d'une partie ici -- especes 101-104, PID 0xAAAA000x fabriques.
+
+class _SondePlateau:
+    """Rend une fiche par ADRESSE, et compte ce qu'on lui demande."""
+
+    def __init__(self, par_indice, noms=True):
+        self.par_indice, self.noms, self.demandes = par_indice, noms, []
+
+    def dump(self, adresse, longueur):
+        self.demandes.append(adresse)
+        if longueur != TAILLE_COMBATTANT:      # une lecture de nom d'espece
+            return bytes([TERMINATEUR]) if self.noms else None
+        indice = (adresse - COMBATTANT_JOUEUR) // PAS_COMBATTANT
+        octets = self.par_indice.get(indice)
+        return octets[:longueur] if octets else None
+
+
+def _plateau_double():
+    return {0: _struct(espece=101, surnom="ALPHA", pid=0xAAAA0001),
+            1: _struct(espece=102, surnom="BETA", pid=0xAAAA0002),
+            2: _struct(espece=103, surnom="GAMMA", pid=0xAAAA0003),
+            3: _struct(espece=104, surnom="DELTA", pid=0xAAAA0004)}
+
+
+def test_PLATEAU_les_quatre_fiches_se_suivent_d_un_PAS():
+    sonde = _SondePlateau(_plateau_double())
+    lire_le_plateau(sonde)
+    fiches = [a for a in sonde.demandes
+              if (a - COMBATTANT_JOUEUR) % PAS_COMBATTANT == 0][:4]
+    assert fiches == [COMBATTANT_JOUEUR + n * PAS_COMBATTANT for n in range(4)]
+
+
+def test_PLATEAU_les_camps_alternent():
+    plateau = lire_le_plateau(_SondePlateau(_plateau_double()))
+    assert [f["notre_camp"] for f in plateau] == [True, False, True, False]
+    assert [f["indice"] for f in plateau] == [0, 1, 2, 3]
+
+
+def test_PLATEAU_en_combat_SIMPLE_les_deux_dernieres_sont_vides():
+    """⚠ LE CONTROLE : sans lui, « les quatre sont pleines » ne prouve rien."""
+    simple = {0: _struct(espece=101, surnom="ALPHA", pid=0xAAAA0001),
+              1: _struct(espece=102, surnom="BETA", pid=0xAAAA0002),
+              2: bytes(TAILLE_COMBATTANT), 3: bytes(TAILLE_COMBATTANT)}
+    plateau = lire_le_plateau(_SondePlateau(simple))
+    assert [f["plausible"] for f in plateau] == [True, True, False, False]
+
+
+def test_PLATEAU_une_fiche_illisible_ne_fait_pas_tomber_les_autres():
+    """⚠ Un plateau ampute se lirait comme un plateau complet -- on le DIT."""
+    partiel = dict(_plateau_double())
+    partiel[3] = None
+    plateau = lire_le_plateau(_SondePlateau(partiel))
+    assert [f["plausible"] for f in plateau] == [True, True, True, False]
+    assert plateau[3]["pourquoi"]
+
+
+def test_PLATEAU_une_sonde_qui_leve_ne_propage_pas():
+    class _Casse:
+        def dump(self, adresse, longueur):
+            raise OSError("connexion fermee")
+
+    plateau = lire_le_plateau(_Casse())
+    assert [f["plausible"] for f in plateau] == [False] * 4
+    assert all("connexion fermee" in f["pourquoi"] for f in plateau)

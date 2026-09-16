@@ -36,7 +36,8 @@ import sys
 from adresses import (NIVEAU, PV_ADVERSE, PV_EQUIPE, PV_MAX, STAGE_NEUTRE,
                       STAGES_ADVERSE, STAGES_EQUIPE)
 from adversaire import lire_adverse_actif
-from combattants import adverse_depuis_struct, lire_combattant
+from combattants import (adverse_depuis_struct, lire_combattant,
+                         lire_le_plateau)
 from probe import DEFAULT_HOST, DEFAULT_PORT, Probe
 
 # Bornes de plausibilite. Elles ne prouvent pas qu'une fiche est VIVANTE --
@@ -96,7 +97,7 @@ def lire_stages(sonde, base):
             for i, nom in enumerate(NOMS_STAGES) if nom}
 
 
-def etat(sonde):
+def etat(sonde, plateau=False):
     joueur = lire_fiche(sonde, PV_EQUIPE)
     adverse = lire_fiche(sonde, PV_ADVERSE)
     # ⚠ Les modificateurs vivent dans une AUTRE structure que les fiches
@@ -110,9 +111,16 @@ def etat(sonde):
     # d'`adversaire.py` ne sert plus que de REPLI -- elle porte une hypothese.
     adverse_actif = (adverse_depuis_struct(lire_combattant(sonde, adverse=True))
                      or lire_adverse_actif(sonde))
-    return {"sonde": "ok", "joueur": joueur, "adverse": adverse,
-            "joueur_actif": lire_combattant(sonde),
-            "adverse_actif": adverse_actif}
+    resultat = {"sonde": "ok", "joueur": joueur, "adverse": adverse,
+                "joueur_actif": lire_combattant(sonde),
+                "adverse_actif": adverse_actif}
+    # ⚠⚠ LE PLATEAU NE SE LIT QUE SI ON LE DEMANDE. Quatre fiches et quatre
+    # noms d'espece la ou deux suffisent : en combat simple ce serait payer le
+    # double pour deux fiches a PID NUL. L'appelant sait s'il est en double (le
+    # drapeau TYPE_DE_COMBAT porte le bit 0x1, mesure du 2026-09-16).
+    if plateau:
+        resultat["plateau"] = lire_le_plateau(sonde)
+    return resultat
 
 
 def _principal():
@@ -120,6 +128,10 @@ def _principal():
     ap.add_argument("--hote", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--lisible", action="store_true")
+    ap.add_argument("--plateau", action="store_true",
+                    help="ajouter les QUATRE fiches de combat (combat "
+                         "DOUBLE). Quatre lectures au lieu de deux : a ne "
+                         "demander que si le drapeau porte le bit 0x1.")
     args = ap.parse_args()
 
     # ⚠ L'ECHEC DE CONNEXION SORT EN JSON LUI AUSSI. Un appelant qui parse la
@@ -146,7 +158,7 @@ def _principal():
                      "joueur": None, "adverse": None}
             print(json.dumps(panne, ensure_ascii=False))
             return 2
-        resultat = etat(sonde)
+        resultat = etat(sonde, plateau=args.plateau)
     except (OSError, ConnectionError) as e:
         panne = {"sonde": f"{type(e).__name__} pendant la lecture : {e}",
                  "joueur": None, "adverse": None}
