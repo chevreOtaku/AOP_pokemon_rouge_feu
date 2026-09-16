@@ -339,20 +339,32 @@ def test_DONNEES_le_type_et_le_pp_se_lisent_aux_decalages_mesures():
 def test_DONNEES_les_quatre_types_MESURES_sont_nommes():
     from noms_rom import TYPES_MESURES, donnees_de_fiche
 
-    assert set(TYPES_MESURES) == {0, 11, 16, 17}
+    assert set(TYPES_MESURES) == {0, 8, 10, 11, 16, 17}
     for numero, nom in TYPES_MESURES.items():
         assert donnees_de_fiche(_fiche_attaque(type_=numero))["type_nom"] == nom
 
 
 def test_DONNEES_un_type_NON_MESURE_rend_son_NUMERO_et_aucun_nom():
-    """⚠⚠⚠ Le type 10 est vu en jeu sur LANCE-FLAMME et c'est evidemment le
-    Feu -- il n'a PAS ete lu a l'ecran, donc il n'est pas nomme. Un nom devine
-    se lirait comme un nom lu. Meme regle que 0xB4 : le jour ou l'ecran le
-    montre, il entre avec sa date, et CE TEST CHANGE deliberement."""
-    from noms_rom import donnees_de_fiche
+    """⚠⚠⚠ CE TEST A CHANGE LE 2026-09-16, DELIBEREMENT -- et sa version
+    precedente portait la consigne de son propre retournement.
 
-    d = donnees_de_fiche(_fiche_attaque(type_=10, pp=15))
-    assert d["type"] == 10
+    Elle disait : *le type 10 est vu en jeu sur LANCE-FLAMME et c'est
+    evidemment le Feu ; il n'a PAS ete lu a l'ecran, donc il n'est pas nomme.
+    Le jour ou l'ecran le montre, il entre avec sa date, et CE TEST CHANGE.*
+
+    Chevre a envoye une capture de l'ecran de resume : LANCE-FLAMME et
+    FLAMMECHE y portent toutes deux « FEU », et toutes deux l'octet 10 -- un
+    controle interne. GRIFFE ACIER y porte « ACIER » et l'octet 8.
+    ➜ Les deux sont entres dans `TYPES_MESURES`, dates. Le test se rabat donc
+    sur un type qui, LUI, n'a pas ete observe.
+
+    ⚠ La regle ne change pas d'un iota : un nom devine se lirait comme un nom
+    lu. Ce qui change, c'est qu'un releve a eu lieu."""
+    from noms_rom import TYPES_MESURES, donnees_de_fiche
+
+    non_mesure = next(n for n in range(1, 18) if n not in TYPES_MESURES)
+    d = donnees_de_fiche(_fiche_attaque(type_=non_mesure, pp=15))
+    assert d["type"] == non_mesure
     assert "type_nom" not in d
 
 

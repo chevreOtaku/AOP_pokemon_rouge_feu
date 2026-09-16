@@ -78,12 +78,18 @@ ATTAQUES_DONNEES_PAS = 12
 ATTAQUE_TYPE = 0x02          # le type
 ATTAQUE_PP = 0x04            # le PP maximum
 
-# ⚠⚠ SEULS CES QUATRE TYPES SONT MESURES, chacun corrobore par la ligne
-# « THPE/... » de l'ecran le 16/09. Les autres valeurs existent forcement --
-# il y a dix-sept types dans la serie -- mais **aucune n'a ete observee ici**.
-# ⚠ Un type inconnu rend son NUMERO, jamais un nom. Le jour ou l'ecran en
-# montre un, il entre ICI avec sa date -- meme regle que 0xB4 (D-BO).
-TYPES_MESURES = {0: "NORMAL", 11: "EAU", 16: "DRAGON", 17: "TENEBRES"}
+# ⚠⚠ SEULS CES SIX TYPES SONT MESURES, chacun corrobore par ce que l'ECRAN
+# affichait. Il y a dix-sept types dans la serie ; les onze autres ne sont PAS
+# nommes, et un type inconnu rend son NUMERO.
+#   16/09, ligne « THPE/... » du menu de combat : NORMAL, EAU, DRAGON, TENEBRES
+#   16/09, CAPTURE de l'ecran de resume (temoin de chevre) : FEU, ACIER
+# ⚠⚠ FEU est corrobore DEUX FOIS, par deux attaques differentes affichant le
+# meme type et portant le meme octet -- un controle interne, pas un seul releve.
+# ⚠ Le jour ou l'ecran en montre un autre, il entre ICI avec sa date, et le
+# test qui exige son ANONYMAT change deliberement -- meme protocole que 0xB4
+# (D-BO). C'est exactement ce qui vient de se passer pour le type 10.
+TYPES_MESURES = {0: "NORMAL", 8: "ACIER", 10: "FEU", 11: "EAU",
+                 16: "DRAGON", 17: "TENEBRES"}
 OBJETS = Table(base=0x083D3324, pas=44, largeur=14, borne=374, identifiant_a=14)
 
 
