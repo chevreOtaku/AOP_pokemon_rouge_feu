@@ -63,6 +63,27 @@ _TABLE[0xB4] = "'"
 # Mesures du 2026-09-15 sur la cartouche francaise (code BPRF).
 ATTAQUES = Table(base=0x082414A0, pas=13, largeur=13, borne=354, identifiant_a=None)
 ESPECES = Table(base=0x082402EC, pas=11, largeur=11, borne=411, identifiant_a=None)
+
+# ⚠⚠⚠ LA TABLE DE DONNEES DES ATTAQUES -- TROUVEE ET CONTROLEE LE 2026-09-16.
+# Ce n'est PAS une adresse recopiee d'un desassemblage : elle a ete cherchee
+# contre le jeu qui tourne, avec le predicat « l'octet +4 vaut le PP MAXIMUM de
+# l'attaque » -- les identifiants venant de la MEMOIRE, les PP maximum de
+# l'ECRAN (« 20/20 »). Quatre controles, tous passes :
+#   a. 8 couples (id, pp) sur 8            -- la recherche
+#   b. 6 attaques JAMAIS utilisees pour chercher : 6/6  -- le controle
+#   c. la base decalee d'UN PAS : 0/8      -- la contre-epreuve
+#   d. le champ +2 regroupe exactement les types LUS A L'ECRAN -- la corroboration
+ATTAQUES_DONNEES_BASE = 0x0824B054
+ATTAQUES_DONNEES_PAS = 12
+ATTAQUE_TYPE = 0x02          # le type
+ATTAQUE_PP = 0x04            # le PP maximum
+
+# ⚠⚠ SEULS CES QUATRE TYPES SONT MESURES, chacun corrobore par la ligne
+# « THPE/... » de l'ecran le 16/09. Les autres valeurs existent forcement --
+# il y a dix-sept types dans la serie -- mais **aucune n'a ete observee ici**.
+# ⚠ Un type inconnu rend son NUMERO, jamais un nom. Le jour ou l'ecran en
+# montre un, il entre ICI avec sa date -- meme regle que 0xB4 (D-BO).
+TYPES_MESURES = {0: "NORMAL", 11: "EAU", 16: "DRAGON", 17: "TENEBRES"}
 OBJETS = Table(base=0x083D3324, pas=44, largeur=14, borne=374, identifiant_a=14)
 
 
@@ -113,6 +134,34 @@ def lire_nom(rom: bytes, table: Table, index: int) -> Dict[str, Any]:
     if len(fiche) < table.pas:
         return {"refus": f"fiche {index} tronquee -- l'image de ROM est trop courte"}
     return _nom_de_fiche(fiche, table, index)
+
+
+def lire_donnees_attaque(sonde, identifiant: int) -> Dict[str, Any]:
+    """Le TYPE et le PP maximum d'une attaque. Une requete. Ne leve jamais.
+
+    ⚠ Rend `type_nom` seulement si le type a ete MESURE ; sinon la cle est
+    ABSENTE et `type` porte le numero. Un nom devine se lirait comme un nom lu.
+    """
+    if identifiant is None or identifiant < 0:
+        return {"refus": "identifiant d'attaque absent"}
+    try:
+        fiche = sonde.dump(
+            ATTAQUES_DONNEES_BASE + identifiant * ATTAQUES_DONNEES_PAS,
+            ATTAQUES_DONNEES_PAS)
+    except (OSError, ValueError) as panne:
+        return {"refus": f"lecture interrompue : {type(panne).__name__}"}
+    if not fiche or len(fiche) < ATTAQUES_DONNEES_PAS:
+        return {"refus": f"la sonde n'a pas rendu l'attaque {identifiant}"}
+    return donnees_de_fiche(fiche)
+
+
+def donnees_de_fiche(fiche: bytes) -> Dict[str, Any]:
+    """Une fiche d'attaque deja lue -> son type et son PP. PURE."""
+    numero = fiche[ATTAQUE_TYPE]
+    rendu = {"type": numero, "pp_max": fiche[ATTAQUE_PP]}
+    if numero in TYPES_MESURES:
+        rendu["type_nom"] = TYPES_MESURES[numero]
+    return rendu
 
 
 def lire_nom_par_sonde(sonde, table: Table, index: int) -> Dict[str, Any]:

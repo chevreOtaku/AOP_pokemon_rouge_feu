@@ -311,3 +311,73 @@ def test_une_sonde_qui_refuse_rend_un_refus_MOTIVE():
     rom, table = _rom(["ALPHA"], pas=13, largeur=13)
     rendu = lire_nom_par_sonde(_SondeFactice(rom, refuse=True), table, 0)
     assert "sonde" in rendu.get("refus", "")
+
+
+# ---------------------------------------------- les DONNEES d'attaque (type, PP)
+# ⚠⚠ TABLE TROUVEE ET CONTROLEE LE 2026-09-16, contre le jeu qui tourne :
+#   a. 8 couples (identifiant de la MEMOIRE, PP maximum de l'ECRAN) : 8/8
+#   b. 6 attaques jamais utilisees pour chercher : 6/6
+#   c. la base decalee d'UN PAS : 0/8 -- elle tombe
+#   d. le champ +2 regroupe exactement les types LUS A L'ECRAN, 4 types distincts
+# ⚠ Aucune valeur de ces tests ne vient d'une partie : les fiches sont fabriquees.
+
+def _fiche_attaque(type_=0, pp=35):
+    b = bytearray(12)
+    b[2] = type_
+    b[4] = pp
+    return bytes(b)
+
+
+def test_DONNEES_le_type_et_le_pp_se_lisent_aux_decalages_mesures():
+    from noms_rom import donnees_de_fiche
+
+    d = donnees_de_fiche(_fiche_attaque(type_=11, pp=25))
+    assert d["type"] == 11
+    assert d["pp_max"] == 25
+
+
+def test_DONNEES_les_quatre_types_MESURES_sont_nommes():
+    from noms_rom import TYPES_MESURES, donnees_de_fiche
+
+    assert set(TYPES_MESURES) == {0, 11, 16, 17}
+    for numero, nom in TYPES_MESURES.items():
+        assert donnees_de_fiche(_fiche_attaque(type_=numero))["type_nom"] == nom
+
+
+def test_DONNEES_un_type_NON_MESURE_rend_son_NUMERO_et_aucun_nom():
+    """⚠⚠⚠ Le type 10 est vu en jeu sur LANCE-FLAMME et c'est evidemment le
+    Feu -- il n'a PAS ete lu a l'ecran, donc il n'est pas nomme. Un nom devine
+    se lirait comme un nom lu. Meme regle que 0xB4 : le jour ou l'ecran le
+    montre, il entre avec sa date, et CE TEST CHANGE deliberement."""
+    from noms_rom import donnees_de_fiche
+
+    d = donnees_de_fiche(_fiche_attaque(type_=10, pp=15))
+    assert d["type"] == 10
+    assert "type_nom" not in d
+
+
+def test_DONNEES_un_identifiant_absent_est_un_refus_pas_un_zero():
+    from noms_rom import lire_donnees_attaque
+
+    assert "refus" in lire_donnees_attaque(None, None)
+    assert "refus" in lire_donnees_attaque(None, -1)
+
+
+def test_DONNEES_une_sonde_muette_refuse_au_lieu_d_inventer():
+    from noms_rom import lire_donnees_attaque
+
+    class _Muette:
+        def dump(self, adresse, longueur):
+            return None
+
+    assert "refus" in lire_donnees_attaque(_Muette(), 33)
+
+
+def test_DONNEES_une_sonde_qui_leve_ne_propage_pas():
+    from noms_rom import lire_donnees_attaque
+
+    class _Casse:
+        def dump(self, adresse, longueur):
+            raise OSError("connexion fermee")
+
+    assert "refus" in lire_donnees_attaque(_Casse(), 33)
