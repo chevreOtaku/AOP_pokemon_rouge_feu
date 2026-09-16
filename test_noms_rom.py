@@ -107,17 +107,23 @@ def test_0x1B_est_un_e_accent_aigu():
     assert decoder(bytes([0xBC, 0x1B, TERMINATEUR]))["texte"] == "Bé"
 
 
-def test_0xB4_RESTE_INCONNU_tant_qu_aucun_releve_a_l_ecran_ne_l_a_prouve():
-    """⚠⚠ Le desassemblage dit « apostrophe ». Aucun releve a l'ecran ne l'a
-    confirme. Selon la doctrine d'`equipe.py`, un octet non verifie reste HORS
-    de la table : il rend « ? » et se compte.
+def test_0xB4_EST_L_APOSTROPHE_releve_a_l_ecran_le_2026_09_16():
+    """✅ RELEVE A L'ECRAN le 2026-09-16, deux captures du createur : l'ecran de
+    resume ET le menu d'attaques en plein combat affichent le meme nom avec une
+    APOSTROPHE, la ou la cartouche porte 0xB4 (verifie octet par octet sur la
+    fiche : ...D4 B4 D3...).
 
-    ➜ Le jour ou un nom a apostrophe est lu a l'ecran, CE TEST DOIT CHANGER --
-    deliberement, avec la date du releve. Il est rouge a ce moment-la, et
-    c'est voulu : une table ne s'etend pas en silence."""
+    ⚠⚠ CE TEST A CHANGE DELIBEREMENT. Il exigeait « inconnu » tant qu'aucun
+    releve ne l'avait prouve, et il disait lui-meme quoi faire ce jour-la. Le
+    releve existe ; l'octet entre dans la table. Une table ne s'etend pas en
+    silence -- elle s'etend par un test qu'on retourne, date.
+
+    ⚠ Ce que ca change ailleurs : 20 noms d'attaques de la cartouche portaient
+    « ? » a cette position (ECRAS?FACE, GROZ?YEUX, BULLES D?O...). Ils se lisent
+    maintenant en entier."""
     rendu = decoder(bytes([0xBB, 0xB4, 0xBC, TERMINATEUR]))
-    assert rendu["texte"] == "A?B"
-    assert rendu["octets_inconnus"] == [0xB4]
+    assert rendu["texte"] == "A'B"
+    assert rendu["octets_inconnus"] == []
 
 
 def test_le_decodeur_de_noms_et_celui_des_surnoms_sont_LA_MEME_table():

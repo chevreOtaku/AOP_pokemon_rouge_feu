@@ -51,11 +51,14 @@ Table = namedtuple("Table", "base pas largeur borne identifiant_a")
 #
 # ✅ 0x1B « é » : un nom d'objet releve a l'ecran porte ce caractere a cette
 #    position, et la cartouche y a 0x1B.
-# ⚠ 0xB4 (apostrophe selon le desassemblage) reste HORS de la table. Le
-#    contexte le corrobore fortement ; aucun releve a l'ecran ne l'a prouve.
-#    Il rend « ? » et se compte, jusqu'a ce releve.
+# ✅ 0xB4 « ' » : RELEVE A L'ECRAN le 2026-09-16 (deux captures du createur --
+#    ecran de resume ET menu d'attaques en combat). La fiche de la cartouche
+#    porte ...D4 B4 D3... la ou l'ecran affiche une apostrophe. Il etait garde
+#    HORS de la table depuis le 15/09, faute de releve : « le contexte le
+#    corrobore » n'est pas une preuve, un ecran l'est.
 _TABLE = dict(_TABLE_VERIFIEE)
 _TABLE[0x1B] = "é"
+_TABLE[0xB4] = "'"
 
 # Mesures du 2026-09-15 sur la cartouche francaise (code BPRF).
 ATTAQUES = Table(base=0x082414A0, pas=13, largeur=13, borne=354, identifiant_a=None)
