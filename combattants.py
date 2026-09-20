@@ -207,11 +207,24 @@ def nommer_especes(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ⚠⚠⚠ CE QUE LA ROM DIT D'UNE ATTAQUE NE CHANGE JAMAIS -- c'est de la cartouche,
-# pas de la partie. Une attaque lue une fois n'est plus jamais redemandee a la
-# sonde, qui meurt sous la charge. Sans ce cache, nommer les quatre attaques
-# couterait HUIT requetes par tour au lieu de quatre.
+# pas de la partie. Une attaque lue une fois n'est plus redemandee a la sonde,
+# qui meurt sous la charge.
+#
+# ⚠⚠ RECTIFIE LE 2026-09-20, LE JOUR MEME : ce commentaire affirmait que le
+# cache evitait « huit requetes par tour au lieu de quatre ». C'EST FAUX, et la
+# mesure l'a montre le soir meme. Le client lit l'equipe en lancant ce depot en
+# SOUS-PROCESSUS : le cache meurt avec lui, et les quatre identifiants d'un
+# meme appel sont tous distincts -- il ne peut donc JAMAIS servir dans l'usage
+# d'aujourd'hui.
+#
+#     lecture d'equipe, sans les noms          348 ms
+#     lecture d'equipe, noms + types + PP max  480 ms   (+130 ms, mesure)
+#
+# ➜ Il est garde parce qu'il ne coute rien et qu'il protegera le jour ou ce
+# module vivra dans un processus long. Mais il ne protege rien aujourd'hui, et
+# le dire vaut mieux que de le laisser croire.
 # ⚠ Le cache ne garde que ce qui a ete LU : un refus n'y entre pas, donc il se
-# retente au tour suivant plutot que de se figer en absence definitive.
+# retente plutot que de se figer en absence definitive.
 _MOVE_DATA_CACHE: Dict[int, Dict[str, Any]] = {}
 
 
@@ -229,11 +242,10 @@ def nommer_attaques_au_combat(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
     (« 5/25 ») au lieu d'un nombre nu, et donner un SECOND temoin a l'arrivee du
     curseur quand l'oeil ne lit pas le compteur (BUG-050).
 
-    ⚠ Le SEUL combattant, jamais l'equipe : la sonde meurt sous la charge. Une
-    requete par attaque NEUVE pour le nom, une pour ses donnees, puis PLUS
-    AUCUNE -- les donnees de ROM sont mises en cache. Rend une COPIE. Ce qui est
-    refuse laisse la cle ABSENTE. Un canal coupe arrete les lectures. Ne leve
-    jamais.
+    ⚠ Le SEUL combattant, jamais l'equipe : la sonde meurt sous la charge. DEUX
+    requetes par attaque -- son nom, puis ses donnees de ROM. Mesure du 20/09 :
+    +130 ms sur la lecture d'equipe complete. Rend une COPIE. Ce qui est refuse
+    laisse la cle ABSENTE. Un canal coupe arrete les lectures. Ne leve jamais.
     """
     from noms_rom import ATTAQUES, lire_donnees_attaque, lire_nom_par_sonde
 
