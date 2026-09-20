@@ -78,9 +78,9 @@ ATTAQUES_DONNEES_PAS = 12
 ATTAQUE_TYPE = 0x02          # le type
 ATTAQUE_PP = 0x04            # le PP maximum
 
-# ⚠⚠ SEULS CES HUIT TYPES SONT MESURES, chacun corrobore par ce que l'ECRAN
-# affichait. Il y a dix-sept types dans la serie ; les onze autres ne sont PAS
-# nommes (neuf restent anonymes), et un type inconnu rend son NUMERO.
+# ⚠⚠ SEULS CES NEUF TYPES SONT MESURES, chacun corrobore par ce que l'ECRAN
+# affichait. Il y a dix-sept types dans la serie ; les huit autres ne sont PAS
+# nommes, et un type inconnu rend son NUMERO.
 #   16/09, ligne « THPE/... » du menu de combat : NORMAL, EAU, DRAGON, TENEBRES
 #   16/09, CAPTURES de l'ecran de resume (temoins de chevre, quatre Pokemon) :
 #          FEU, ACIER, PSY, VOL
@@ -89,8 +89,17 @@ ATTAQUE_PP = 0x04            # le PP maximum
 # ⚠ Le jour ou l'ecran en montre un autre, il entre ICI avec sa date, et le
 # test qui exige son ANONYMAT change deliberement -- meme protocole que 0xB4
 # (D-BO). C'est exactement ce qui vient de se passer pour le type 10.
+#   20/09, l'ecran d'ATTAQUES de la trace du 19/09 : la ligne « THPE/PLANTE »
+#          etait affichee pendant que les quatre attaques d'un BULBIZARRE
+#          l'etaient aussi. Deux d'entre elles seulement peuvent etre
+#          surlignees en Plante -- VAMPIGRAINE et FOUET LIANES -- et les DEUX
+#          portent l'octet 12, releve a la sonde le 20/09. Les deux autres
+#          (CHARGE, RUGISSEMENT) portent l'octet 0, deja nomme NORMAL : si
+#          l'une d'elles avait ete surlignee, l'ecran aurait affiche NORMAL.
+#          ➜ L'octet 12 est donc PLANTE, sans qu'on ait besoin de savoir
+#          LAQUELLE des deux etait sous le curseur.
 TYPES_MESURES = {0: "NORMAL", 2: "VOL", 8: "ACIER", 10: "FEU", 11: "EAU",
-                 14: "PSY", 16: "DRAGON", 17: "TENEBRES"}
+                 12: "PLANTE", 14: "PSY", 16: "DRAGON", 17: "TENEBRES"}
 OBJETS = Table(base=0x083D3324, pas=44, largeur=14, borne=374, identifiant_a=14)
 
 

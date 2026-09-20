@@ -336,10 +336,12 @@ def test_DONNEES_le_type_et_le_pp_se_lisent_aux_decalages_mesures():
     assert d["pp_max"] == 25
 
 
-def test_DONNEES_les_quatre_types_MESURES_sont_nommes():
+def test_DONNEES_les_types_MESURES_sont_nommes():
     from noms_rom import TYPES_MESURES, donnees_de_fiche
 
-    assert set(TYPES_MESURES) == {0, 2, 8, 10, 11, 14, 16, 17}
+    # ⚠ PLANTE (12) est entre le 2026-09-20 : voir le commentaire de
+    # `TYPES_MESURES`. Neuf sur dix-sept.
+    assert set(TYPES_MESURES) == {0, 2, 8, 10, 11, 12, 14, 16, 17}
     for numero, nom in TYPES_MESURES.items():
         assert donnees_de_fiche(_fiche_attaque(type_=numero))["type_nom"] == nom
 
@@ -359,7 +361,14 @@ def test_DONNEES_un_type_NON_MESURE_rend_son_NUMERO_et_aucun_nom():
     sur un type qui, LUI, n'a pas ete observe.
 
     ⚠ La regle ne change pas d'un iota : un nom devine se lirait comme un nom
-    lu. Ce qui change, c'est qu'un releve a eu lieu."""
+    lu. Ce qui change, c'est qu'un releve a eu lieu.
+
+    ⚠⚠ IL A CHANGE UNE SECONDE FOIS LE 2026-09-20, pour PLANTE (12) -- et
+    cette fois le releve ne dit pas QUELLE attaque etait surlignee. Il n'en a
+    pas besoin : les deux seules candidates portent le meme octet, et les deux
+    autres attaques de l'ecran portent un octet DEJA nomme autrement. *Une
+    mesure n'exige pas de tout savoir -- elle exige que les autres
+    explications soient exclues.*"""
     from noms_rom import TYPES_MESURES, donnees_de_fiche
 
     non_mesure = next(n for n in range(1, 18) if n not in TYPES_MESURES)
