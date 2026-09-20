@@ -206,19 +206,36 @@ def nommer_especes(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
     return rendu
 
 
+# ⚠⚠⚠ CE QUE LA ROM DIT D'UNE ATTAQUE NE CHANGE JAMAIS -- c'est de la cartouche,
+# pas de la partie. Une attaque lue une fois n'est plus jamais redemandee a la
+# sonde, qui meurt sous la charge. Sans ce cache, nommer les quatre attaques
+# couterait HUIT requetes par tour au lieu de quatre.
+# ⚠ Le cache ne garde que ce qui a ete LU : un refus n'y entre pas, donc il se
+# retente au tour suivant plutot que de se figer en absence definitive.
+_MOVE_DATA_CACHE: Dict[int, Dict[str, Any]] = {}
+
+
 def nommer_attaques_au_combat(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
-    """Ajoute `nom` a chaque attaque du membre `au_combat`. Une requete par attaque.
+    """Ajoute `nom`, `type` et `pp_max` a chaque attaque du membre `au_combat`.
 
-    ⚠⚠ POURQUOI. La manette resout le mot demande contre les noms LUS A L'ECRAN,
-    et refuse si leur nombre differe du nombre d'attaques en memoire. Un nom
-    a apostrophe n'a jamais ete lu : sur un combattant a deux attaques, chaque
-    demande de la premiere etait refusee, en boucle.
+    ⚠⚠ POURQUOI LE NOM. La manette resout le mot demande contre les noms LUS A
+    L'ECRAN, et refuse si leur nombre differe du nombre d'attaques en memoire.
+    Un nom a apostrophe n'a jamais ete lu : sur un combattant a deux attaques,
+    chaque demande de la premiere etait refusee, en boucle.
 
-    ⚠ Le SEUL combattant, jamais l'equipe : la sonde meurt sous la charge.
-    Rend une COPIE. Un nom refuse laisse la cle ABSENTE. Un canal coupe arrete
-    les lectures. Ne leve jamais.
+    ⚠⚠ POURQUOI LE TYPE ET LE PP MAXIMUM (2026-09-20). La table de donnees des
+    attaques a ete trouvee et controlee le 16/09, puis branchee NULLE PART. Deux
+    usages l'attendaient : dire ses PP sous la forme que le jeu affiche
+    (« 5/25 ») au lieu d'un nombre nu, et donner un SECOND temoin a l'arrivee du
+    curseur quand l'oeil ne lit pas le compteur (BUG-050).
+
+    ⚠ Le SEUL combattant, jamais l'equipe : la sonde meurt sous la charge. Une
+    requete par attaque NEUVE pour le nom, une pour ses donnees, puis PLUS
+    AUCUNE -- les donnees de ROM sont mises en cache. Rend une COPIE. Ce qui est
+    refuse laisse la cle ABSENTE. Un canal coupe arrete les lectures. Ne leve
+    jamais.
     """
-    from noms_rom import ATTAQUES, lire_nom_par_sonde
+    from noms_rom import ATTAQUES, lire_donnees_attaque, lire_nom_par_sonde
 
     rendu = dict(lu)
     rendu["equipe"] = [dict(f) for f in (lu.get("equipe") or [])]
@@ -227,12 +244,24 @@ def nommer_attaques_au_combat(sonde, lu: Dict[str, Any]) -> Dict[str, Any]:
             continue
         fiche["attaques"] = [dict(a) for a in fiche.get("attaques") or []]
         for attaque in fiche["attaques"]:
+            identifiant = attaque.get("id")
             try:
-                nom = lire_nom_par_sonde(sonde, ATTAQUES, attaque.get("id"))
+                nom = lire_nom_par_sonde(sonde, ATTAQUES, identifiant)
             except (OSError, ValueError, TypeError):
                 return rendu
             if nom.get("nom"):
                 attaque["nom"] = nom["nom"]
+
+            donnees = _MOVE_DATA_CACHE.get(identifiant)
+            if donnees is None:
+                try:
+                    lues = lire_donnees_attaque(sonde, identifiant)
+                except (OSError, ValueError, TypeError):
+                    return rendu
+                if "refus" not in lues:
+                    donnees = _MOVE_DATA_CACHE.setdefault(identifiant, lues)
+            if donnees:
+                attaque.update(donnees)
     return rendu
 
 

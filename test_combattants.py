@@ -19,6 +19,8 @@ especes 101-103, PID 0xAAAA000x, surnoms ALPHA/BETA fabriques.
 """
 import struct
 
+import pytest
+
 from adresses import COMBATTANT_JOUEUR, PAS_COMBATTANT
 from combattants import (TAILLE_COMBATTANT, enrichir_equipe, lire_combattant,
                          lire_etat, lire_le_plateau, lire_struct_combattant)
@@ -218,21 +220,42 @@ def test_ADVERSE_une_fiche_implausible_ou_sans_nom_rend_None_pour_le_repli():
 # et chaque demande de la premiere est refusee -- en boucle.
 
 class _SondeAttaques:
-    """Rend ALPHA pour l'attaque 1, BRAVO pour la 2, refuse le reste. COMPTE."""
+    """ALPHA pour l'attaque 1, BRAVO pour la 2, refuse le reste. COMPTE.
+
+    ⚠ Elle repond AUSSI a la table de DONNEES (type, PP maximum), branchee le
+    2026-09-20 : l'attaque 1 porte le type 11 a 35 PP, la 2 le type 0 a 25 PP.
+    Valeurs FABRIQUEES -- aucune valeur d'une partie ici.
+    """
 
     def __init__(self, leve=False):
         self.requetes = 0
         self.leve = leve
 
     def dump(self, adresse, longueur):
-        from noms_rom import ATTAQUES
+        from noms_rom import (ATTAQUE_PP, ATTAQUE_TYPE, ATTAQUES,
+                              ATTAQUES_DONNEES_BASE, ATTAQUES_DONNEES_PAS)
         self.requetes += 1
         if self.leve:
             raise OSError("canal coupe")
         for identifiant, nom in ((1, "ALPHA"), (2, "BRAVO")):
             if adresse == ATTAQUES.base + identifiant * ATTAQUES.pas:
                 return (_surnom(nom) + bytes(longueur))[:longueur]
+        for identifiant, type_, pp_max in ((1, 11, 35), (2, 0, 25)):
+            if adresse == ATTAQUES_DONNEES_BASE + identifiant * ATTAQUES_DONNEES_PAS:
+                fiche = bytearray(ATTAQUES_DONNEES_PAS)
+                fiche[ATTAQUE_TYPE], fiche[ATTAQUE_PP] = type_, pp_max
+                return bytes(fiche)
         return None
+
+
+@pytest.fixture(autouse=True)
+def _cache_de_rom_vide():
+    """⚠ Le cache des donnees de ROM est un etat de MODULE : sans ce vidage, le
+    compte de requetes d'un test dependrait de l'ORDRE des tests."""
+    from combattants import _MOVE_DATA_CACHE
+    _MOVE_DATA_CACHE.clear()
+    yield
+    _MOVE_DATA_CACHE.clear()
 
 
 def _membre(emplacement, pid, identifiants, au_combat=False):
@@ -251,8 +274,41 @@ def test_ATTAQUES_seul_le_membre_AU_COMBAT_est_nomme():
     rendu = nommer_attaques_au_combat(sonde, lu)
     assert [a.get("nom") for a in rendu["equipe"][1]["attaques"]] == ["ALPHA", "BRAVO"]
     assert all("nom" not in a for a in rendu["equipe"][0]["attaques"])
-    assert sonde.requetes == 2, "une requete par attaque du combattant, pas plus"
+    assert sonde.requetes == 4, ("deux requetes par attaque NEUVE : son nom, "
+                                 "puis ses donnees de ROM (type, PP maximum)")
     assert "nom" not in lu["equipe"][1]["attaques"][0], "la lecture d'origine est intacte"
+
+
+def test_ATTAQUES_le_TYPE_et_le_PP_MAXIMUM_viennent_avec_le_nom():
+    """⚠ Branche le 2026-09-20 : la table etait trouvee depuis le 16/09 et
+    n'etait lue par personne. Sans `pp_max`, ses PP se disent « 10 » au lieu de
+    « 10/35 » -- et rien ne lui dit qu'une attaque est a sec."""
+    from combattants import nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [1, 2], au_combat=True)]}
+    attaques = nommer_attaques_au_combat(_SondeAttaques(), lu)["equipe"][0]["attaques"]
+    assert [(a["type"], a["pp_max"]) for a in attaques] == [(11, 35), (0, 25)]
+    assert [a.get("type_nom") for a in attaques] == ["EAU", "NORMAL"]
+
+
+def test_ATTAQUES_les_donnees_de_ROM_ne_se_redemandent_JAMAIS():
+    """La cartouche ne change pas : un tour de combat ne doit pas repayer ses
+    quatre lectures. ⚠ La sonde meurt sous la charge -- c'est la raison."""
+    from combattants import nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [1, 2], au_combat=True)]}
+    sonde = _SondeAttaques()
+    nommer_attaques_au_combat(sonde, lu)
+    nommer_attaques_au_combat(sonde, lu)
+    assert sonde.requetes == 6, "4 au premier tour, puis les 2 noms seulement"
+
+
+def test_ATTAQUES_des_donnees_REFUSEES_ne_se_figent_pas_dans_le_cache():
+    """⚠ Un refus mis en cache deviendrait une absence DEFINITIVE -- la panne
+    d'un tour vaudrait pour la partie entiere."""
+    from combattants import _MOVE_DATA_CACHE, nommer_attaques_au_combat
+    lu = {"equipe": [_membre(0, 0xAAAA0001, [99], au_combat=True)]}
+    rendu = nommer_attaques_au_combat(_SondeAttaques(), lu)
+    assert "pp_max" not in rendu["equipe"][0]["attaques"][0]
+    assert 99 not in _MOVE_DATA_CACHE
 
 
 def test_ATTAQUES_un_nom_refuse_reste_ABSENT_jamais_devine():
